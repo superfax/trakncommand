@@ -21,27 +21,25 @@ async function getSupabaseClient() {
     if (!isValid(url, key)) {
         console.warn(`[Supabase] Invalid Credentials or Build Phase. URL=${!!url}, Key=${!!key}, Build=${isBuildPhase}`);
 
-        // Return a robust mock Proxy to prevent "is not a function" crashes
         const createMock: any = () => {
-            const chain = () => {
-                const proxy: any = new Proxy(() => { }, {
-                    get: (target, prop) => {
-                        if (prop === 'then') return undefined; // Not a promise until called
-                        return proxy;
-                    },
-                    apply: () => {
-                        // When called, return a promise or the proxy itself
-                        return Promise.resolve({ data: null, error: null, count: 0 });
+            const handler: ProxyHandler<any> = {
+                get: (target, prop) => {
+                    if (prop === 'then') {
+                        return (resolve: any) => resolve({ data: null, error: null, count: 0 });
                     }
-                });
-                return proxy;
+                    return () => new Proxy(() => { }, handler);
+                },
+                apply: () => {
+                    return new Proxy(() => { }, handler);
+                }
             };
 
+            const proxy = new Proxy(() => { }, handler);
             return {
-                from: chain,
+                from: () => proxy,
                 auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) },
-                rpc: chain
-            } as any;
+                rpc: () => proxy
+            };
         };
 
         return createMock();
