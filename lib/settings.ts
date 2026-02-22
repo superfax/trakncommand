@@ -63,20 +63,11 @@ export async function saveMacros(macros: Macro[]): Promise<void> {
 export async function saveSettings(settings: Partial<Settings>): Promise<void> {
     const client = await getSupabaseClient();
 
-    // Convert to DB format (Case-Resilient: Send both snake and camel)
+    // Map to camelCase by default (project standard)
     const dbUpdate: any = {};
     if (settings.keyword !== undefined) dbUpdate.keyword = settings.keyword;
-
-    if (settings.isSystemOnline !== undefined) {
-        dbUpdate.is_system_online = settings.isSystemOnline;
-        dbUpdate.isSystemOnline = settings.isSystemOnline;
-    }
-
-    if (settings.autoReply !== undefined) {
-        dbUpdate.auto_reply = settings.autoReply;
-        dbUpdate.autoReply = settings.autoReply;
-    }
-
+    if (settings.isSystemOnline !== undefined) dbUpdate.isSystemOnline = settings.isSystemOnline;
+    if (settings.autoReply !== undefined) dbUpdate.autoReply = settings.autoReply;
     if (settings.macros !== undefined) dbUpdate.macros = settings.macros;
 
     const { error } = await client
@@ -84,7 +75,17 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
         .upsert({ id: 1, ...dbUpdate }, { onConflict: 'id' });
 
     if (error) {
-        console.error("[Settings] Error saving to Supabase:", error);
+        // Fallback: If camelCase fails with PGRST204, try snake_case
+        if (error.code === 'PGRST204') {
+            const snakeUpdate: any = { id: 1 };
+            if (settings.keyword !== undefined) snakeUpdate.keyword = settings.keyword;
+            if (settings.isSystemOnline !== undefined) snakeUpdate.is_system_online = settings.isSystemOnline;
+            if (settings.autoReply !== undefined) snakeUpdate.auto_reply = settings.autoReply;
+            if (settings.macros !== undefined) snakeUpdate.macros = settings.macros;
+            await client.from('settings').upsert(snakeUpdate, { onConflict: 'id' });
+        } else {
+            console.error("[Settings] Error saving to Supabase:", error);
+        }
     }
 }
 

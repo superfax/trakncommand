@@ -20,12 +20,12 @@ export async function getLeads(): Promise<Lead[]> {
         return [];
     }
 
-    // Map back to camelCase (check both snake and camel from DB)
+    // Map back: Prefer camelCase as it seems to be the user's schema standard
     return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         name: row.name,
-        profilePic: row.profile_pic || row.profilePic,
+        profilePic: row.profilePic || row.profile_pic,
         status: row.status,
         timestamp: row.timestamp,
         tags: row.tags
@@ -54,13 +54,12 @@ export async function saveLead(lead: Lead): Promise<void> {
 
     const client = await getSafeClient();
 
-    // Case-Resilient: Send both to satisfy any schema
+    // FIXED: Only send camelCase to avoid PGRST204 (Column not found)
     const dbLead: any = {
         id: enriched.id,
         handle: enriched.handle,
         name: enriched.name,
-        profile_pic: enriched.profilePic,
-        profilePic: enriched.profilePic, // Support camelCase
+        profilePic: enriched.profilePic,
         status: enriched.status,
         timestamp: enriched.timestamp,
         tags: enriched.tags
@@ -71,7 +70,14 @@ export async function saveLead(lead: Lead): Promise<void> {
         .upsert(dbLead, { onConflict: 'id' });
 
     if (error) {
-        console.error("[Supabase] Error saving lead:", error);
+        // Fallback: If camelCase fails, try snake_case once (for legacy safety)
+        if (error.code === 'PGRST204') {
+            const legacyLead = { ...dbLead, profile_pic: enriched.profilePic };
+            delete legacyLead.profilePic;
+            await client.from('leads').upsert(legacyLead, { onConflict: 'id' });
+        } else {
+            console.error("[Supabase] Error saving lead:", error);
+        }
     }
 }
 
@@ -125,50 +131,64 @@ export async function getActivities(): Promise<ActivityItem[]> {
         return [];
     }
 
-    // Map back to camelCase (check both)
     return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         comment: row.comment,
         status: row.status,
         timestamp: row.timestamp,
-        replyText: row.reply_text || row.replyText,
-        postImage: row.post_image || row.postImage,
-        postCaption: row.post_caption || row.postCaption,
-        commentId: row.comment_id || row.commentId,
-        userId: row.user_id || row.userId
+        replyText: row.replyText || row.reply_text,
+        postImage: row.postImage || row.post_image,
+        postCaption: row.postCaption || row.post_caption,
+        commentId: row.commentId || row.comment_id,
+        userId: row.userId || row.user_id
     })) as ActivityItem[];
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
-    const client = await getSafeClient();
+    try {
+        const client = await getSafeClient();
 
-    // Case-Resilient: Send both snake_case and camelCase
-    const dbItem: any = {
-        id: item.id,
-        handle: item.handle,
-        comment: item.comment,
-        status: item.status,
-        timestamp: item.timestamp,
-        reply_text: item.replyText,
-        replyText: item.replyText,
-        post_image: item.postImage,
-        postImage: item.postImage,
-        post_caption: item.postCaption,
-        postCaption: item.postCaption,
-        comment_id: item.commentId,
-        commentId: item.commentId,
-        user_id: item.userId,
-        userId: item.userId
-    };
+        // FIXED: Only send camelCase to avoid PGRST204
+        const dbItem: any = {
+            id: item.id,
+            handle: item.handle,
+            comment: item.comment,
+            status: item.status,
+            timestamp: item.timestamp,
+            replyText: item.replyText,
+            postImage: item.postImage,
+            postCaption: item.postCaption,
+            commentId: item.commentId,
+            userId: item.userId
+        };
 
-    const { error } = await client
-        .from('activity')
-        .upsert(dbItem, { onConflict: 'id' });
+        const { error } = await client
+            .from('activity')
+            .upsert(dbItem, { onConflict: 'id' });
 
-    if (error) {
-        // If it still fails, it's likely a missing column. We log it but proceed to avoid blocking the bot.
-        console.error("[Supabase] Error logging activity:", error);
+        if (error) {
+            // Fallback: Try snake_case if camelCase fails with PGRST204
+            if (error.code === 'PGRST204') {
+                const snakeItem: any = {
+                    id: item.id,
+                    handle: item.handle,
+                    comment: item.comment,
+                    status: item.status,
+                    timestamp: item.timestamp,
+                    reply_text: item.replyText,
+                    post_image: item.postImage,
+                    post_caption: item.postCaption,
+                    comment_id: item.commentId,
+                    user_id: item.userId
+                };
+                await client.from('activity').upsert(snakeItem, { onConflict: 'id' });
+            } else {
+                console.error("[Supabase] Error logging activity:", error);
+            }
+        }
+    } catch (e) {
+        console.error("[Storage] Fatal error in logActivity:", e);
     }
 }
 
@@ -177,24 +197,31 @@ export async function updateActivityStatus(
     status: "sent" | "failed",
     replyText?: string
 ): Promise<void> {
-    const client = await getSafeClient();
+    try {
+        const client = await getSafeClient();
 
-    // Try to find by both column styles
-    const { data: itemsBySnake } = await client.from('activity').select('id').eq('comment_id', commentId).eq('status', 'pending');
-    const { data: itemsByCamel } = await client.from('activity').select('id').eq('commentId', commentId).eq('status', 'pending');
+        // Try camelCase first (likely correct per error logs)
+        let { data: items } = await client.from('activity').select('id').eq('commentId', commentId).eq('status', 'pending');
 
-    const items = [...(itemsBySnake || []), ...(itemsByCamel || [])];
-    if (items.length === 0) return;
+        // Fallback to snake_case only if no items found
+        if (!items || items.length === 0) {
+            const { data: snakeItems } = await client.from('activity').select('id').eq('comment_id', commentId).eq('status', 'pending');
+            items = snakeItems;
+        }
 
-    const item = items[0];
-    const updatePayload: any = { status, reply_text: replyText, replyText: replyText };
+        if (!items || items.length === 0) return;
 
-    const { error: updateError } = await client
-        .from('activity')
-        .update(updatePayload)
-        .eq('id', item.id);
+        const item = items[0];
+        const { error } = await client
+            .from('activity')
+            .update({ status, replyText: replyText })
+            .eq('id', item.id);
 
-    if (updateError) {
-        console.error("[Supabase] Error updating activity status:", updateError);
+        if (error && error.code === 'PGRST204') {
+            // Last resort update via snake_case
+            await client.from('activity').update({ status, reply_text: replyText }).eq('id', item.id);
+        }
+    } catch (e) {
+        console.error("[Storage] Fatal error in updateActivityStatus:", e);
     }
 }
