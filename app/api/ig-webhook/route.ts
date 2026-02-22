@@ -1,4 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSettings } from "@/lib/settings";
+import { saveLead, hasContactedUser, logActivity, updateActivityStatus } from "@/lib/storage";
+import { sendPrivateReply, likeComment, wait } from "@/lib/instagram";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,18 +23,9 @@ export async function GET(req: NextRequest) {
     }
 }
 
-// Helper to dynamically import lib modules
-async function getLib() {
-    const settings = await import("@/lib/settings");
-    const storage = await import("@/lib/storage");
-    const instagram = await import("@/lib/instagram");
-    return { ...settings, ...storage, ...instagram };
-}
-
-// Helper to process in background
+// Helper to process in background (now awaited for Vercel stability)
 async function processWebhookEvent(body: any) {
     try {
-        const { getSettings, saveLead, hasContactedUser, logActivity, updateActivityStatus, sendPrivateReply, likeComment, wait } = await getLib();
         const settings = await getSettings();
         console.log(`[Webhook] Settings Loaded: Online=${settings.isSystemOnline}, Keyword="${settings.keyword}"`);
 
@@ -52,7 +46,7 @@ async function processWebhookEvent(body: any) {
                     if (msg.message && msg.message.text) {
                         interactions.push({
                             userId: msg.sender?.id,
-                            username: `User_${msg.sender?.id.slice(-4)}`,
+                            username: `User_${msg.sender?.id?.toString().slice(-4)}`,
                             commentText: msg.message.text,
                             commentId: msg.message.mid,
                             isDM: true,
@@ -75,7 +69,7 @@ async function processWebhookEvent(body: any) {
                         const from = value.from || {};
                         interactions.push({
                             userId: from.id,
-                            username: from.name || from.username || `User_${from.id?.slice(-4)}`,
+                            username: from.name || from.username || `User_${from.id?.toString().slice(-4)}`,
                             commentText: change.field === "feed" ? value.message : (value.text || ""),
                             commentId: change.field === "feed" ? value.comment_id : value.id,
                             parentId: value.parent_id,
@@ -104,7 +98,7 @@ async function processWebhookEvent(body: any) {
 
                 console.log(`[Webhook] Receipt: ${username} said "${commentText}"`);
 
-                // Log initial receipt
+                // Log initial receipt (Now uses mapped snake_case in storage.ts)
                 await logActivity({
                     id: `rx-${Date.now()}`,
                     handle: username,
@@ -152,7 +146,7 @@ async function processWebhookEvent(body: any) {
                         handle: username,
                         timestamp: new Date().toISOString(),
                         status: "new",
-                        tags: [randomTag] // New: AI Tagging
+                        tags: [randomTag]
                     });
 
                     // 2. Human Delay (1-2s) - Minimum for Vercel stability
@@ -164,12 +158,10 @@ async function processWebhookEvent(body: any) {
                     await wait(delay);
 
                     // 3. Reply using the configured auto-reply message from settings
-                    // For DMs, we DO NOT pass the commentId to avoid Strategy 1 (public reply)
                     const success = await sendPrivateReply(userId, settings.autoReply, isDM ? undefined : commentId);
 
                     if (success) {
                         console.log("Reply Sent Successfully.");
-                        // Update original "pending" activity item with reply text
                         await updateActivityStatus(commentId, "sent", settings.autoReply);
                     } else {
                         await updateActivityStatus(commentId, "failed", "Reply failed to send");
@@ -185,16 +177,15 @@ async function processWebhookEvent(body: any) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        console.log("📥 WEBHOOK RECEIVED:", JSON.stringify(body, null, 2)); // LOG EVERYTHING
+        const bodyStr = JSON.stringify(body, null, 2);
+        console.log("📥 WEBHOOK RECEIVED:", bodyStr);
 
         if (body.object === "instagram" || body.object === "page") {
-
-            // VERCEL FIX: We MUST await this in serverless environments, 
-            // otherwise Vercel kills the process before the delay/DM finishes.
+            // VERCEL FIX: We MUST await this in serverless environments
             await processWebhookEvent(body);
-
             return new NextResponse("EVENT_RECEIVED", { status: 200 });
         } else {
+            console.warn(`[Webhook] Ignored object type: ${body.object}`);
             return new NextResponse("Not Found", { status: 404 });
         }
     } catch (error) {

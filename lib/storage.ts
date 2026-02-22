@@ -19,7 +19,17 @@ export async function getLeads(): Promise<Lead[]> {
         console.error("[Supabase] Error fetching leads:", error);
         return [];
     }
-    return data as Lead[];
+
+    // Map back to camelCase
+    return (data || []).map(row => ({
+        id: row.id,
+        handle: row.handle,
+        name: row.name,
+        profilePic: row.profile_pic,
+        status: row.status,
+        timestamp: row.timestamp,
+        tags: row.tags
+    })) as Lead[];
 }
 
 export async function saveLead(lead: Lead): Promise<void> {
@@ -43,9 +53,21 @@ export async function saveLead(lead: Lead): Promise<void> {
     }
 
     const client = await getSafeClient();
+
+    // Map to snake_case for Supabase
+    const dbLead = {
+        id: enriched.id,
+        handle: enriched.handle,
+        name: enriched.name,
+        profile_pic: enriched.profilePic,
+        status: enriched.status,
+        timestamp: enriched.timestamp,
+        tags: enriched.tags
+    };
+
     const { error } = await client
         .from('leads')
-        .upsert(enriched, { onConflict: 'id' });
+        .upsert(dbLead, { onConflict: 'id' });
 
     if (error) {
         console.error("[Supabase] Error saving lead:", error);
@@ -92,7 +114,7 @@ export async function purgeLeads(): Promise<void> {
 
 // --- ACTIVITY LOGS ---
 
-export async function getActivity(): Promise<ActivityItem[]> {
+export async function getActivities(): Promise<ActivityItem[]> {
     const client = await getSafeClient();
     const { data, error } = await client
         .from('activity')
@@ -104,14 +126,42 @@ export async function getActivity(): Promise<ActivityItem[]> {
         console.error("[Supabase] Error fetching activity:", error);
         return [];
     }
-    return data as ActivityItem[];
+
+    // Map back to camelCase
+    return (data || []).map(row => ({
+        id: row.id,
+        handle: row.handle,
+        comment: row.comment,
+        status: row.status,
+        timestamp: row.timestamp,
+        replyText: row.reply_text,
+        postImage: row.post_image,
+        postCaption: row.post_caption,
+        commentId: row.comment_id,
+        userId: row.user_id
+    })) as ActivityItem[];
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
     const client = await getSafeClient();
+
+    // Map to snake_case
+    const dbItem = {
+        id: item.id,
+        handle: item.handle,
+        comment: item.comment,
+        status: item.status,
+        timestamp: item.timestamp,
+        reply_text: item.replyText,
+        post_image: item.postImage,
+        post_caption: item.postCaption,
+        comment_id: item.commentId,
+        user_id: item.userId
+    };
+
     const { error } = await client
         .from('activity')
-        .upsert(item, { onConflict: 'id' });
+        .upsert(dbItem, { onConflict: 'id' });
 
     if (error) {
         console.error("[Supabase] Error logging activity:", error);
@@ -127,7 +177,7 @@ export async function updateActivityStatus(
     const { data: items, error: fetchError } = await client
         .from('activity')
         .select('*')
-        .eq('commentId', commentId)
+        .eq('comment_id', commentId)
         .eq('status', 'pending');
 
     if (fetchError || !items || items.length === 0) return;
@@ -135,7 +185,7 @@ export async function updateActivityStatus(
     const item = items[0];
     const { error: updateError } = await client
         .from('activity')
-        .update({ status, replyText })
+        .update({ status, reply_text: replyText })
         .eq('id', item.id);
 
     if (updateError) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logActivity, getActivity, updateActivityStatus } from "@/lib/storage";
+import { logActivity, getActivities, updateActivityStatus } from "@/lib/storage";
 
 export const dynamic = 'force-dynamic';
 import { replyToComment } from "@/lib/instagram";
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
         const { handle, message, activityId } = await req.json();
 
         // Find the original activity item to get the real commentId
-        const activity = await getActivity();
+        const activity = await getActivities();
         const original = activityId
             ? activity.find((a) => a.id === activityId)
             : activity.find((a) => a.handle === handle && a.commentId);
