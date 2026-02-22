@@ -41,7 +41,7 @@ const STATUS_CONFIG = {
 export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveActivityFeedProps) {
     const [replyingId, setReplyingId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
-    const [filter, setFilter] = useState<FilterStatus>("all");
+    const [filter, setFilter] = useState<FilterStatus>("sent");
 
     const handleSend = (item: ActivityItem) => {
         if (!replyText.trim()) return;
@@ -88,6 +88,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
     });
 
     const consolidatedFeed = Array.from(consolidatedMap.values())
+        .filter(item => !item.handle.includes("6346") && !item.userId?.includes("6346"))
         .sort((a, b) => b._timestamp - a._timestamp); // Latest activity first
 
     // 2. Filter & Counts
@@ -106,7 +107,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
             {/* Sub-Header / Filters */}
             <div className="p-4 border-b border-border bg-black/20 flex items-center justify-between sticky top-0 z-20 backdrop-blur-sm">
                 <div className="flex gap-1">
-                    {(["all", "sent", "pending", "failed"] as FilterStatus[]).map((s) => (
+                    {(["sent", "pending", "failed"] as FilterStatus[]).map((s) => (
                         <button
                             key={s}
                             onClick={() => setFilter(s)}
@@ -117,7 +118,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
                                     : "border-transparent text-gray-500 hover:text-white"
                             )}
                         >
-                            {s} <span className="ml-1.5 opacity-40">{counts[s]}</span>
+                            {s === "sent" ? "SENT (V6)" : s} <span className="ml-1.5 opacity-40">{counts[s]}</span>
                         </button>
                     ))}
                 </div>

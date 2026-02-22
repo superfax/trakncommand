@@ -225,3 +225,15 @@ export async function updateActivityStatus(
         console.error("[Storage] Fatal error in updateActivityStatus:", e);
     }
 }
+
+export async function purgeActivities(): Promise<void> {
+    const client = await getSafeClient();
+    const { error } = await client
+        .from('activity')
+        .delete()
+        .neq('id', '0');
+
+    if (error) {
+        console.error("[Supabase] Error purging activities:", error);
+    }
+}

@@ -7,7 +7,7 @@ export async function likeComment(commentId: string): Promise<boolean> {
     try {
         console.log(`[IG] Liking comment ${commentId}...`);
         const res = await fetch(
-            `https://graph.facebook.com/v25.0/${commentId}/likes?access_token=${ACCESS_TOKEN}`,
+            `https://graph.facebook.com/v21.0/${commentId}/likes?access_token=${ACCESS_TOKEN}`,
             { method: "POST" }
         );
         const data = await res.json();
@@ -66,7 +66,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Public Reply to ${commentId}...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v21.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -94,7 +94,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Trying Modern Private Reply via /me/messages v25.0...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/me/messages?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v21.0/me/messages?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -123,7 +123,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Trying Modern Private Reply via ${IG_BIZ_ID}...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v21.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -151,7 +151,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Trying Legacy Private Reply on ${commentId}...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v21.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -179,7 +179,7 @@ export async function sendPrivateReply(
             console.log(`[IG] Fallback DM attempt via ${baseId}...`);
             try {
                 const res = await fetch(
-                    `https://graph.facebook.com/v25.0/${baseId}/messages?access_token=${ACCESS_TOKEN}`,
+                    `https://graph.facebook.com/v21.0/${baseId}/messages?access_token=${ACCESS_TOKEN}`,
                     {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -228,7 +228,7 @@ export async function replyToComment(commentId: string, message: string): Promis
     }
     try {
         const res = await fetch(
-            `https://graph.facebook.com/v25.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
+            `https://graph.facebook.com/v21.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
             {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },

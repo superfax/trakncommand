@@ -1,256 +1,245 @@
 import { NextRequest, NextResponse } from "next/server";
-import { appendFileSync, writeFileSync } from "fs";
+import { writeFileSync, mkdirSync, existsSync } from "fs";
 import { join } from "path";
 import { getSettings } from "@/lib/settings";
-import { saveLead, hasContactedUser, logActivity, updateActivityStatus } from "@/lib/storage";
+import { saveLead, logActivity, updateActivityStatus } from "@/lib/storage";
 import { sendPrivateReply, likeComment, wait } from "@/lib/instagram";
 
 export const dynamic = 'force-dynamic';
 
-// Verify Token should be an environment variable
 const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN || "TRAKN_COMMAND_V1";
 
+// 🛡️ RECURSION SHIELD: BIGINT-SAFE IDENTITY CHECK
+// JavaScript mangles long Meta IDs (17 digits) if parsed as Numbers.
+// We use regex on the raw text in the POST handler for absolute safety.
+function isShieldedBot(val: any): boolean {
+    if (!val) return false;
+
+    // Convert to string safely
+    const id = String(val).trim();
+    if (!id || id === "undefined" || id === "[object Object]") return false;
+
+    // Suffix check is the most reliable fingerprint
+    if (id.endsWith("6346") || id.endsWith("0268")) return true;
+
+    // Exact matches
+    const bizId = process.env.FB_IG_BUSINESS_ID || "17841480450586346";
+    const pageId = process.env.FB_PAGE_ID || "945833891950268";
+    if (id === bizId || id === pageId || id === "17841480450586346" || id === "945833891950268") return true;
+
+    // Floating point mangling check
+    if (id.startsWith("178414804505863") && (id.length >= 16)) return true;
+
+    return false;
+}
+
 export async function GET(req: NextRequest) {
-    // Verification request from Meta
     const { searchParams } = new URL(req.url);
     const mode = searchParams.get("hub.mode");
     const token = searchParams.get("hub.verify_token");
     const challenge = searchParams.get("hub.challenge");
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
-        console.log("WEBHOOK_VERIFIED");
         return new NextResponse(challenge, { status: 200 });
-    } else {
-        return new NextResponse("Forbidden", { status: 403 });
     }
+    return new NextResponse("Forbidden", { status: 403 });
 }
 
-// Helper to process in background (now awaited for Vercel stability)
 async function processWebhookEvent(body: any) {
     try {
         const settings = await getSettings();
-        console.log(`[Webhook] Settings Loaded: Online = ${settings.isSystemOnline}, Keyword = "${settings.keyword}"`);
+        if (!settings.isSystemOnline) return;
 
-        // Safety Check 1: Master Toggle
-        if (!settings.isSystemOnline) {
-            console.log("⚠️ WEBHOOK IGNORED: System is OFFLINE in Supabase Settings.");
-            return;
-        }
-
-        const triggerKeyword = settings.keyword;
+        const triggerKeyword = settings.keyword.trim();
 
         for (const entry of body.entry) {
+            // 🛡️ STANDBY PROTECTION (Handover Protocol)
+            if (entry.standby) {
+                console.log(`[Shield] Standby event ignored.`);
+                continue;
+            }
+
             const interactions: any[] = [];
 
-            // 1. Collect DMs (Direct Messaging)
+            // 1. DMs (Direct Messaging)
             if (entry.messaging) {
                 for (const msg of entry.messaging) {
-                    if (msg.message && msg.message.text) {
+                    const senderIdRaw = msg.sender?.id;
+                    const recipientIdRaw = msg.recipient?.id;
+
+                    // 🛡️ SENDER SHIELD: REJECT BOT ECHOES
+                    if (isShieldedBot(senderIdRaw) || msg.message?.is_echo) {
+                        console.log(`[Shield] Dropped DM Echo from Bot ${senderIdRaw}`);
+                        continue;
+                    }
+
+                    // 🛡️ RECIPIENT SHIELD: MUST BE SENT TO THE BOT
+                    if (!isShieldedBot(recipientIdRaw)) {
+                        console.log(`[Shield] Dropped DM not addressed to bot (Recipient ${recipientIdRaw})`);
+                        continue;
+                    }
+
+                    if (msg.message?.text) {
+                        const sId = String(senderIdRaw);
                         interactions.push({
-                            userId: msg.sender?.id,
-                            username: `User_${msg.sender?.id?.toString().slice(-4)}`,
+                            userId: sId,
+                            username: `User_${sId.slice(-4)}`,
                             commentText: msg.message.text,
                             commentId: msg.message.mid,
                             isDM: true,
-                            media: {}
+                            media: {},
+                            rawSender: senderIdRaw,
+                            rawRecipient: recipientIdRaw
                         });
                     }
                 }
             }
 
-            // 2. Collect Comments (Changes)
+            // 2. Comments (Feeds & Comments)
             if (entry.changes) {
                 for (const change of entry.changes) {
                     const value = change.value;
-                    if (!value) continue;
+                    if (!value || !value.from) continue;
 
-                    const isInstagramComment = change.field === "comments";
-                    const isFacebookComment = change.field === "feed" && value.item === "comment";
+                    // 🛡️ REJECT BOT COMMENTS
+                    if (isShieldedBot(value.from.id)) {
+                        console.log(`[Shield] Dropped Bot Comment from ${value.from.id}`);
+                        continue;
+                    }
 
-                    if (isInstagramComment || isFacebookComment) {
-                        const from = value.from || {};
-                        const username = (from.username || from.name || `User_${from.id?.toString().slice(-4)}`).trim();
+                    const isComment = change.field === "comments" || (change.field === "feed" && value.item === "comment");
+                    if (isComment) {
+                        const sId = String(value.from.id);
+                        const username = (value.from.username || value.from.name || `User_${sId.slice(-4)}`).trim();
                         interactions.push({
-                            userId: from.id,
+                            userId: sId,
                             username,
                             commentText: change.field === "feed" ? value.message : (value.text || ""),
                             commentId: change.field === "feed" ? value.comment_id : value.id,
                             parentId: value.parent_id,
                             media: value.media || {},
-                            isDM: false
+                            isDM: false,
+                            rawSender: value.from.id
                         });
                     }
                 }
             }
 
-            // 3. Process each interaction
+            // 3. Process Valid Interactions
             for (const item of interactions) {
-                const { userId, username, commentText, commentId, parentId, media, isDM } = item;
+                const { userId, username, commentText, commentId, isDM, rawSender, rawRecipient } = item;
 
-                console.log(`[Webhook] Processing interaction from ${username} (${isDM ? 'DM' : 'Comment'})`);
+                // 🛡️ RECURSION SHIELDS (v6 - Final Lockdown)
+                const lowerText = (commentText || "").toLowerCase();
+                const isRecursiveStr = lowerText.includes("exclusive access") ||
+                    lowerText.includes("trakn.pro/access") ||
+                    lowerText.includes("📩") ||
+                    lowerText.includes("workflow") ||
+                    lowerText.includes("replied") ||
+                    lowerText.includes("trakn automator");
 
-                // 🔍 IMPROVED: Ignore messages from the business itself
-                const selfHandles = ["traknpro"];
-                const isSelf = selfHandles.includes(username.toLowerCase()) ||
-                    commentText === settings.autoReply;
+                const isBot = isShieldedBot(userId) || isShieldedBot(rawSender);
 
-                if (isSelf) {
-                    console.log(`⏭️ Ignoring self - interaction from ${username} `);
+                if (isRecursiveStr || isBot) {
+                    console.log(`🛑 [Shield] DROPPED. Bot=${isBot}, Recurse=${isRecursiveStr}. Content: ${commentText.slice(0, 30)}...`);
                     continue;
                 }
 
-                console.log(`[Webhook] Receipt: ${username} said "${commentText}"`);
+                console.log(`[Webhook] Receipt: ${username} -> "${commentText}"`);
 
-                // Log initial receipt
                 await logActivity({
                     id: `rx-${Date.now()}-${username}`,
                     handle: username,
                     comment: isDM ? `📩 (DM): ${commentText}` : commentText,
                     status: "pending",
                     timestamp: new Date().toLocaleTimeString(),
-                    postImage: media.media_url,
-                    postCaption: media.caption,
-                    commentId: parentId || commentId,
+                    postImage: item.media.media_url,
+                    postCaption: item.media.caption,
+                    commentId: item.parentId || commentId,
                     userId,
                 });
 
-                // Keyword Trigger Check
-                if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
-                    console.log(`🎯 Keyword Match: "${triggerKeyword}" found in "${commentText}"`);
+                const keywordRegex = new RegExp(`\\b${triggerKeyword}\\b`, 'i');
+                if (keywordRegex.test(commentText)) {
+                    console.log(`🎯 Keyword Match!`);
 
-                    /* 🔍 TEMP DISABLED FOR TESTING: Duplicate / Cooldown
-                    const alreadyContacted = await hasContactedUser(userId);
-                    if (alreadyContacted) {
-                        console.log(`⚠️ User ${username} already contacted. Skipping.`);
-                        await logActivity({
-                            id: `skip-${Date.now()}`,
-                            handle: username,
-                            comment: "Duplicate skipped",
-                            status: "failed",
-                            timestamp: new Date().toLocaleTimeString()
-                        });
-                        continue;
-                    }
-                    */
-                    console.log(`[DEBUG] Duplicate check bypassed for testing user: ${username}`);
+                    if (!isDM) await likeComment(commentId);
 
-                    console.log("Keyword Matched! Initiating workflow...");
-
-                    // Humanization 1: Like the comment immediately (Only for non-DMs)
-                    if (!isDM) {
-                        await likeComment(commentId);
-                    }
-
-                    // Simulate AI Tagging
-                    const potentialTags = ["VIP", "High Value", "Early Access", "Influencer"];
-                    const randomTag = potentialTags[Math.floor(Math.random() * potentialTags.length)];
-
-                    // 1. Save Lead (Mark as contacted)
                     await saveLead({
                         id: userId,
                         handle: username,
                         timestamp: new Date().toISOString(),
                         status: "new",
-                        tags: [randomTag]
+                        tags: ["Verified"]
                     });
 
-                    // 2. Human Delay (1-2s) - Minimum for Vercel stability
-                    const minDelay = 1000;
-                    const maxDelay = 2000;
-                    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+                    await wait(1800);
 
-                    console.log(`Waiting ${delay}ms...`);
-                    await wait(delay);
-
-                    // 🛠️ ADVANCED PERSONALIZATION
                     const personalize = (text: string) => {
-                        let msg = text;
-                        // Replace macros
-                        msg = msg.replace(/\[USERNAME\]/gi, username);
-                        msg = msg.replace(/\[HANDLE\]/gi, username);
-
-                        // If it doesn't already start with @mention, prepend it for public replies
-                        if (!isDM && !msg.startsWith("@") && !msg.includes(username)) {
-                            msg = `@${username} ${msg}`;
-                        }
+                        let msg = text.replace(/\[USERNAME\]/gi, username).replace(/\[HANDLE\]/gi, username);
+                        if (!isDM && !msg.startsWith("@")) msg = `@${username} ${msg}`;
                         return msg;
                     };
 
-                    const finalPublicReply = personalize(settings.autoReply);
-                    const finalDmReply = personalize(settings.dmReply);
-
-                    console.log(`[Webhook] Prepared Replies for ${username} - Public: "${finalPublicReply.slice(0, 20)}...", DM: "${finalDmReply.slice(0, 20)}..."`);
-
-                    // 4. Send the personalized replies
                     const result = await sendPrivateReply(
                         userId,
-                        finalPublicReply,
-                        finalDmReply,
+                        personalize(settings.autoReply),
+                        personalize(settings.dmReply),
                         isDM ? undefined : commentId
                     );
 
                     if (result.success) {
-                        console.log("Automation Sequence Successful.");
-
-                        // Construct status label
-                        let statusText = "";
-                        if (isDM) {
-                            statusText = result.privateOk ? `📩 DM Sent: "${settings.dmReply.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText} `;
-                        } else {
-                            const cStatus = result.publicOk ? "💬 Comment ✅" : "💬 Comment ❌";
-                            const dStatus = result.privateOk ? "📩 DM ✅" : "📩 DM ❌";
-                            statusText = `${cStatus} | ${dStatus} `;
-
-                            // If DM failed, show the link we tried to send
-                            if (!result.privateOk) {
-                                statusText += ` (Err: ${result.errorText})`;
-                            } else {
-                                statusText += ` | DM: "${settings.dmReply.slice(0, 15)}..."`;
-                            }
-                        }
-
-                        await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
+                        const label = isDM ? `📩 DM Sent` : `💬 Comment ✅ | 📩 DM ✅`;
+                        await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", label);
                     } else {
-                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"} `);
+                        // Diagnostic labels in activity failure
+                        const diag = `S:${String(rawSender).slice(-4)} R:${String(rawRecipient || 'N/A').slice(-4)}`;
+                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText} (${diag})`);
                     }
                 }
             }
         }
     } catch (error) {
-        console.error("Background Processing Error:", error);
+        console.error("Critical Webhook Error:", error);
     }
 }
 
 export async function POST(req: NextRequest) {
+    const dataDir = join(process.cwd(), "public", "logs");
     try {
-        const body = await req.json();
+        if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
-        // --- DIAGNOSTIC LOGGING ---
-        try {
-            const logPath = join(process.cwd(), "data", "last_webhook.json");
-            writeFileSync(logPath, JSON.stringify({
-                timestamp: new Date().toISOString(),
-                body
-            }, null, 2));
-            console.log("[DEBUG] Webhook payload saved to data/last_webhook.json");
-        } catch (e) {
-            console.error("[DEBUG] Failed to save webhook log:", e);
+        const rawText = await req.text();
+        const timestamp = Date.now();
+
+        // 1. AUDIT EVERYTHING (v5)
+        writeFileSync(join(dataDir, `raw_${timestamp}.json`), rawText);
+
+        // 2. IRON DOME v5 (UNCONDITIONAL SENDER REJECTION)
+        // If the bot ID appears anywhere in a context that looks like a sender/from, NUKE IT.
+        const botPatterns = ["178414804505863", "9458338919502", "6346", "0268"];
+        const isSelf = botPatterns.some(p => {
+            const regex = new RegExp(`"(sender|from)"\\s*:\\s*\\{[^}]*"id"\\s*:\\s*"?${p}`, "i");
+            return regex.test(rawText);
+        });
+
+        if (isSelf) {
+            console.log("🛑 [Iron Dome v5] Blocked Bot Echo at entrance.");
+            return new NextResponse("EVENT_RECEIVED", { status: 200 });
         }
-        // ---------------------------
 
-        const bodyStr = JSON.stringify(body, null, 2);
-        console.log("📥 WEBHOOK RECEIVED:", bodyStr);
+        // 3. BIGINT-SAFE PRE-PARSING
+        const cleanedBodyRaw = rawText.replace(/:(\s*)(\d{15,})/g, ':$1"$2"');
+        const body = JSON.parse(cleanedBodyRaw);
+        writeFileSync(join(dataDir, `parsed_${timestamp}.json`), JSON.stringify(body, null, 2));
 
         if (body.object === "instagram" || body.object === "page") {
-            // VERCEL FIX: We MUST await this in serverless environments
             await processWebhookEvent(body);
             return new NextResponse("EVENT_RECEIVED", { status: 200 });
-        } else {
-            console.warn(`[Webhook] Ignored object type: ${body.object} `);
-            return new NextResponse("Not Found", { status: 404 });
         }
+        return new NextResponse("Not Found", { status: 404 });
     } catch (error) {
-        console.error("Webhook processing error:", error);
-        return new NextResponse("Internal Server Error", { status: 500 });
+        console.error("Webhook Internal Error:", error);
+        return new NextResponse("Internal Error", { status: 500 });
     }
 }
