@@ -21,6 +21,9 @@ async function debugToken() {
             `https://graph.facebook.com/v24.0/debug_token?input_token=${ACCESS_TOKEN}&access_token=${appToken}`
         );
         const debugData = await debugRes.json();
+        console.log("--- RAW DEBUG DATA ---");
+        console.log(JSON.stringify(debugData, null, 2));
+        console.log("----------------------");
 
         if (debugData.error) {
             console.error("❌ Token Inspection Failed:", debugData.error.message);

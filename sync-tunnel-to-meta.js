@@ -4,8 +4,9 @@ require('dotenv').config({ path: '.env.local' });
 const ACCESS_TOKEN = process.env.FB_ACCESS_TOKEN;
 const PAGE_ID = process.env.FB_PAGE_ID || "945833891950268";
 
-// UPDATE THIS WITH YOUR CURRENT NGROK URL FROM start-tunnel.bat
-const TUNNEL_URL = "https://alysha-untroublesome-uncontiguously.ngrok-free.dev";
+// THE PRODUCTION CALLBACK URL
+const PRODUCTION_URL = "https://trakncommand.vercel.app";
+const TUNNEL_URL = PRODUCTION_URL;
 const VERIFY_TOKEN = process.env.FB_VERIFY_TOKEN || "TRAKN_COMMAND_V1";
 
 async function syncWebhook() {
