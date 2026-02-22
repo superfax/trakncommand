@@ -23,9 +23,10 @@ interface MiniCRMProps {
     leads: Lead[];
     macros?: Macro[];
     variant?: "full" | "minimal";
+    onRemove?: () => void;
 }
 
-export default function MiniCRM({ leads, macros = [], variant = "full" }: MiniCRMProps) {
+export default function MiniCRM({ leads, macros = [], variant = "full", onRemove }: MiniCRMProps) {
     const isMinimal = variant === "minimal";
     const [dmPickerFor, setDmPickerFor] = useState<string | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -39,8 +40,10 @@ export default function MiniCRM({ leads, macros = [], variant = "full" }: MiniCR
         try {
             const res = await fetch(`/api/leads?id=${id}`, { method: "DELETE" });
             if (!res.ok) throw new Error("Delete failed");
+            if (onRemove) onRemove();
         } catch (error) {
             console.error("Failed to delete lead:", error);
+            alert("Failed to delete lead. Please try again.");
         }
     };
 
@@ -113,6 +116,21 @@ export default function MiniCRM({ leads, macros = [], variant = "full" }: MiniCR
                         />
                     </div>
                     <div className="flex items-center gap-2">
+                        <button
+                            onClick={async () => {
+                                if (!window.confirm("Purge ALL leads? This cannot be undone.")) return;
+                                try {
+                                    await fetch("/api/leads", { method: "DELETE" });
+                                    if (onRemove) onRemove();
+                                } catch (e) {
+                                    alert("Purge failed.");
+                                }
+                            }}
+                            className="p-2 text-red-500/50 hover:text-red-500 hover:bg-red-400/10 rounded-[6px] border border-white/5 transition-all"
+                            title="Purge All Leads"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
                         <button className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-[6px] border border-white/5">
                             <Filter className="w-4 h-4" />
                         </button>

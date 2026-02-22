@@ -30,12 +30,19 @@ export async function DELETE(req: NextRequest) {
     try {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
-        if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
 
-        await deleteLead(id);
+        // Dynamic import to avoid circular issues
+        const { deleteLead, purgeLeads } = await import("@/lib/storage");
+
+        if (id) {
+            await deleteLead(id);
+        } else {
+            await purgeLeads();
+        }
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[Leads DELETE] Error:", error);
-        return NextResponse.json({ error: "Failed to delete lead" }, { status: 500 });
+        return NextResponse.json({ error: "Failed to delete lead(s)" }, { status: 500 });
     }
 }

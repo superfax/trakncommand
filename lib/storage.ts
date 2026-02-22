@@ -68,6 +68,10 @@ export async function deleteLead(leadId: string): Promise<void> {
     await fs.writeFile(LEADS_FILE, JSON.stringify(updated, null, 2));
 }
 
+export async function purgeLeads(): Promise<void> {
+    await fs.writeFile(LEADS_FILE, JSON.stringify([], null, 2));
+}
+
 // --- ACTIVITY LOGS ---
 
 export async function getActivity(): Promise<ActivityItem[]> {

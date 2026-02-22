@@ -25,6 +25,15 @@ export default function Home() {
   const [isFiring, setIsFiring] = useState(false);
   const [fireMsg, setFireMsg] = useState<string | null>(null);
 
+  const fetchDashboardData = () => {
+    fetch("/api/dashboard")
+      .then((res) => res.json())
+      .then((data) => {
+        setLeads(data.leads || []);
+        setFeed(data.activity || []);
+      });
+  };
+
   // Fetch initial status and data
   useEffect(() => {
     // 1. Get Settings
@@ -36,17 +45,8 @@ export default function Home() {
       });
 
     // 2. Get Dashboard Data (Polling every 3s)
-    const fetchData = () => {
-      fetch("/api/dashboard")
-        .then((res) => res.json())
-        .then((data) => {
-          setLeads(data.leads);
-          setFeed(data.activity);
-        });
-    };
-
-    fetchData();
-    const interval = setInterval(fetchData, 3000);
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 3000);
     return () => clearInterval(interval);
   }, []);
 
@@ -248,7 +248,12 @@ export default function Home() {
                     </div>
                     {/* Just show a small subset or the main CRM component restricted */}
                     <div className="max-h-[500px] overflow-hidden">
-                      <MiniCRM leads={leads.slice(0, 5)} macros={macros} variant="minimal" />
+                      <MiniCRM
+                        leads={leads.slice(0, 5)}
+                        macros={macros}
+                        variant="minimal"
+                        onRemove={fetchDashboardData}
+                      />
                     </div>
                   </section>
                 </div>
@@ -272,7 +277,7 @@ export default function Home() {
               </div>
 
               <div className="flex-1 min-h-[600px] editorial-panel overflow-hidden shadow-2xl">
-                <MiniCRM leads={leads} macros={macros} />
+                <MiniCRM leads={leads} macros={macros} onRemove={fetchDashboardData} />
               </div>
             </div>
           )}
