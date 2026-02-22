@@ -1,13 +1,17 @@
 import { Lead } from "@/components/MiniCRM";
 import { ActivityItem } from "@/components/LiveActivityFeed";
 
-async function getClient() {
-    const { createClient } = await import('@supabase/supabase-js');
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+// CAUTION: This function is strictly runtime-only. 
+// It will return a mock if called during build or if keys are invalid.
+async function getSafeClient() {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!url || !key) {
-        console.warn("[Storage] Missing Supabase credentials. Returning mock client.");
+    // Check for "falsy" or "placeholder" or "undefined" strings
+    const isValid = (val?: string) => val && val !== "" && val !== "undefined" && val !== "null" && val.length > 10;
+
+    if (!isValid(url) || !isValid(key)) {
+        console.warn("[Storage] Missing or invalid Supabase keys. Using build-safe mock.");
         return {
             from: () => ({
                 select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }),
@@ -19,13 +23,19 @@ async function getClient() {
         } as any;
     }
 
-    return createClient(url, key);
+    try {
+        const { createClient } = await import('@supabase/supabase-js');
+        return createClient(url!, key!);
+    } catch (e) {
+        console.error("[Storage] Failed to initialize Supabase client:", e);
+        return { from: () => ({ select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }) } as any;
+    }
 }
 
 // --- LEADS ---
 
 export async function getLeads(): Promise<Lead[]> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { data, error } = await client
         .from('leads')
         .select('*')
@@ -58,7 +68,7 @@ export async function saveLead(lead: Lead): Promise<void> {
         console.warn("[Storage] Could not enrich lead profile:", e);
     }
 
-    const client = await getClient();
+    const client = await getSafeClient();
     const { error } = await client
         .from('leads')
         .upsert(enriched, { onConflict: 'id' });
@@ -69,7 +79,7 @@ export async function saveLead(lead: Lead): Promise<void> {
 }
 
 export async function hasContactedUser(userId: string): Promise<boolean> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { data, error } = await client
         .from('leads')
         .select('id')
@@ -83,7 +93,7 @@ export async function hasContactedUser(userId: string): Promise<boolean> {
 }
 
 export async function deleteLead(leadId: string): Promise<void> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { error } = await client
         .from('leads')
         .delete()
@@ -95,7 +105,7 @@ export async function deleteLead(leadId: string): Promise<void> {
 }
 
 export async function purgeLeads(): Promise<void> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { error } = await client
         .from('leads')
         .delete()
@@ -109,7 +119,7 @@ export async function purgeLeads(): Promise<void> {
 // --- ACTIVITY LOGS ---
 
 export async function getActivity(): Promise<ActivityItem[]> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { data, error } = await client
         .from('activity')
         .select('*')
@@ -124,7 +134,7 @@ export async function getActivity(): Promise<ActivityItem[]> {
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { error } = await client
         .from('activity')
         .upsert(item, { onConflict: 'id' });
@@ -139,7 +149,7 @@ export async function updateActivityStatus(
     status: "sent" | "failed",
     replyText?: string
 ): Promise<void> {
-    const client = await getClient();
+    const client = await getSafeClient();
     const { data: items, error: fetchError } = await client
         .from('activity')
         .select('*')
