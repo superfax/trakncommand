@@ -118,7 +118,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
                                     : "border-transparent text-gray-500 hover:text-white"
                             )}
                         >
-                            {s === "sent" ? "SENT (V6)" : s} <span className="ml-1.5 opacity-40">{counts[s]}</span>
+                            {s} <span className="ml-1.5 opacity-40">{counts[s]}</span>
                         </button>
                     ))}
                 </div>
