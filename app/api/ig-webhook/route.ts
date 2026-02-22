@@ -89,6 +89,8 @@ async function processWebhookEvent(body: any) {
             for (const item of interactions) {
                 const { userId, username, commentText, commentId, parentId, media, isDM } = item;
 
+                console.log(`[Webhook] Processing interaction from ${username} (${isDM ? 'DM' : 'Comment'})`);
+
                 // 🔍 IMPROVED: Ignore messages from the business itself
                 const selfHandles = ["traknpro", "isellbeatsapp"];
                 const isSelf = selfHandles.includes(username.toLowerCase()) ||
@@ -99,7 +101,7 @@ async function processWebhookEvent(body: any) {
                     continue;
                 }
 
-                console.log(`Received ${isDM ? 'DM' : 'comment'} from ${username}: ${commentText}`);
+                console.log(`[Webhook] Receipt: ${username} said "${commentText}"`);
 
                 // Log initial receipt
                 await logActivity({
@@ -116,6 +118,7 @@ async function processWebhookEvent(body: any) {
 
                 // Keyword Trigger Check
                 if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
+                    console.log(`🎯 Keyword Match: "${triggerKeyword}" found in "${commentText}"`);
 
                     // Safety Check 2: Duplicate / Cooldown
                     const alreadyContacted = await hasContactedUser(userId);

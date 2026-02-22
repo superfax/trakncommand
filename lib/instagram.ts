@@ -42,6 +42,8 @@ export async function sendPrivateReply(
         return false;
     }
 
+    let success = false;
+
     // Strategy 1: Public comment reply (works with instagram_manage_comments)
     if (commentId) {
         console.log(`[IG] Replying to comment ${commentId} with: "${replyText}"`);
@@ -56,10 +58,11 @@ export async function sendPrivateReply(
             );
             const data = await res.json();
             if (!data.error && (data.id || data.success)) {
-                console.log("[IG] ✅ Public comment reply sent! ID:", data.id);
-                return true;
+                console.log("[IG] ✅ Public comment reply sent!");
+                success = true;
+            } else {
+                console.warn("[IG] Public reply failed:", JSON.stringify(data.error || data));
             }
-            console.warn("[IG] Public reply failed:", JSON.stringify(data.error || data));
         } catch (e) {
             console.error("[IG] Public reply threw:", e);
         }
@@ -83,16 +86,19 @@ export async function sendPrivateReply(
             const data = await res.json();
             if (!data.error) {
                 console.log("[IG] ✅ DM sent via IGSID:", data.message_id);
-                return true;
+                success = true;
+            } else {
+                console.error("[IG] DM failed (needs Advanced Access):", JSON.stringify(data.error));
             }
-            console.error("[IG] DM failed (needs Advanced Access):", JSON.stringify(data.error));
         } catch (e) {
             console.error("[IG] DM threw:", e);
         }
     }
 
-    console.error("[IG] ❌ All reply strategies failed");
-    return false;
+    if (!success) {
+        console.error("[IG] ❌ All reply strategies failed");
+    }
+    return success;
 }
 
 /**
