@@ -155,9 +155,9 @@ async function processWebhookEvent(body: any) {
                         tags: [randomTag] // New: AI Tagging
                     });
 
-                    // 2. Human Delay (2-8s) - Capped for Vercel 10s limit
-                    const minDelay = 2000;
-                    const maxDelay = 8000;
+                    // 2. Human Delay (1-2s) - Minimum for Vercel stability
+                    const minDelay = 1000;
+                    const maxDelay = 2000;
                     const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
 
                     console.log(`Waiting ${delay}ms...`);
@@ -189,10 +189,9 @@ export async function POST(req: NextRequest) {
 
         if (body.object === "instagram" || body.object === "page") {
 
-            // FIRE AND FORGET:
-            // We do NOT await this. We let it run in the background.
-            // This ensures we return 200 OK instantly to Meta.
-            processWebhookEvent(body);
+            // VERCEL FIX: We MUST await this in serverless environments, 
+            // otherwise Vercel kills the process before the delay/DM finishes.
+            await processWebhookEvent(body);
 
             return new NextResponse("EVENT_RECEIVED", { status: 200 });
         } else {
