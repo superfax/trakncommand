@@ -86,9 +86,40 @@ export async function sendPrivateReply(
         }
     }
 
-    // 2. STRATEGY A: Official Private Reply
-    if (commentId && dmReply) {
-        console.log(`[IG] Trying Official Private Reply on ${commentId}...`);
+    // 2. STRATEGY A: Official Modern Private Reply (per Meta Docs)
+    // Endpoint: IG_BIZ_ID/messages
+    // Body: { recipient: { comment_id: ... }, message: { text: ... } }
+    if (commentId && dmReply && IG_BIZ_ID) {
+        console.log(`[IG] Trying Modern Private Reply via ${IG_BIZ_ID}...`);
+        try {
+            const res = await fetch(
+                `https://graph.facebook.com/v24.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        recipient: { comment_id: commentId },
+                        message: { text: dmReply }
+                    })
+                }
+            );
+            const data = await res.json();
+            if (!data.error && (data.id || data.success || data.message_id)) {
+                console.log("[IG] ✅ Modern Private Reply OK");
+                result.privateOk = true;
+            } else {
+                const err = data.error?.message || JSON.stringify(data);
+                privateError = `Modern: ${err}`;
+                console.warn("[IG] Modern Private Reply failed:", err);
+            }
+        } catch (e: any) {
+            privateError = `Modern Method Exception: ${e.message}`;
+        }
+    }
+
+    // 2b. STRATEGY A2: Legacy Private Reply Fallback
+    if (!result.privateOk && commentId && dmReply) {
+        console.log(`[IG] Trying Legacy Private Reply on ${commentId}...`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v24.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
@@ -100,14 +131,14 @@ export async function sendPrivateReply(
             );
             const data = await res.json();
             if (!data.error && (data.id || data.success)) {
-                console.log("[IG] ✅ Official Private Reply OK");
+                console.log("[IG] ✅ Legacy Private Reply OK");
                 result.privateOk = true;
             } else {
-                privateError = `Official: ${data.error?.message || JSON.stringify(data)}`;
-                console.warn("[IG] Official Private Reply failed.");
+                const err = data.error?.message || JSON.stringify(data);
+                privateError += ` | Legacy: ${err}`;
             }
         } catch (e: any) {
-            privateError = `Official Method Exception: ${e.message}`;
+            privateError += ` | Legacy Exception: ${e.message}`;
         }
     }
 
