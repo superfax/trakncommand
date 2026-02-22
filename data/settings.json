@@ -1,0 +1,19 @@
+{
+  "keyword": "PRO",
+  "isSystemOnline": true,
+  "autoReply": "Check Dm for Your Access. :)",
+  "macros": [
+    {
+      "label": "📱App Access",
+      "text": "Check Dm for Your Access. :)"
+    },
+    {
+      "label": "We Got YOu.",
+      "text": "sent you access."
+    },
+    {
+      "label": "🍁 Get Access",
+      "text": "You got Access! DM otw"
+    }
+  ]
+}

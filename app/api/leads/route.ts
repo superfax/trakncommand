@@ -1,0 +1,41 @@
+import { NextRequest, NextResponse } from "next/server";
+import { saveLead, deleteLead } from "@/lib/storage";
+
+export async function POST(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { handle, id, status, tags, name } = body;
+
+        if (!handle || !id) {
+            return NextResponse.json({ error: "Missing handle or id" }, { status: 400 });
+        }
+
+        await saveLead({
+            id,
+            handle,
+            status: status || "new",
+            tags: tags || [],
+            name: name || "",
+            timestamp: new Date().toISOString()
+        });
+
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("[Leads POST] Error:", error);
+        return NextResponse.json({ error: "Failed to save lead" }, { status: 500 });
+    }
+}
+
+export async function DELETE(req: NextRequest) {
+    try {
+        const { searchParams } = new URL(req.url);
+        const id = searchParams.get("id");
+        if (!id) return NextResponse.json({ error: "Missing id" }, { status: 400 });
+
+        await deleteLead(id);
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("[Leads DELETE] Error:", error);
+        return NextResponse.json({ error: "Failed to delete lead" }, { status: 500 });
+    }
+}

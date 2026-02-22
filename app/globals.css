@@ -1,0 +1,56 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter);
+  --font-display: var(--font-michroma);
+
+  --color-background: #0A0A0A;
+  --color-foreground: #F5F5F5;
+  --color-surface: #111111;
+  --color-surface-hover: #1A1A1A;
+  --color-border: #262626;
+
+  --color-brand-purple: #A855F7;
+  --color-brand-purple-hover: #9333EA;
+
+  --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Custom Utilities */
+@utility glass-panel {
+  @apply bg-surface/60 backdrop-blur-md border border-white/5 rounded-[8px];
+}
+
+@utility editorial-panel {
+  @apply bg-surface border border-border rounded-[8px];
+}
+
+@utility active-glow {
+  box-shadow: 0 0 15px rgba(168, 85, 247, 0.1);
+}
+
+@utility sidebar-item {
+  @apply flex items-center gap-3 px-4 py-3 rounded-[6px] text-gray-400 transition-all duration-200 hover:bg-white/5 hover:text-white;
+}
+
+@utility sidebar-item-active {
+  @apply bg-brand-purple/10 text-brand-purple border-r-2 border-brand-purple rounded-r-none;
+}
+
+@utility text-label {
+  @apply font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase;
+}
+
+.platform-table th {
+  @apply text-left py-4 px-6 font-mono text-[10px] tracking-[0.2em] text-gray-500 uppercase border-b border-border font-medium;
+}
+
+.platform-table td {
+  @apply py-4 px-6 border-b border-white/[0.02] text-sm;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  background-image: radial-gradient(circle at 50% 0%, #1a1a1a 0%, #0A0A0A 80%);
+}
