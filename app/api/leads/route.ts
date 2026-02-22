@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+
+export const dynamic = 'force-dynamic';
 import { saveLead, deleteLead } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
