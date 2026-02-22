@@ -53,12 +53,34 @@ async function debugToken() {
             console.log("\n💎 PERMISSIONS PERFECT: All necessary scopes are present.");
         }
 
-        // 2. Fetch User Identity
-        const meRes = await fetch(`https://graph.facebook.com/v24.0/me?fields=id,name&access_token=${ACCESS_TOKEN}`);
+        // 2. Fetch Identity and linked Instagram account
+        const meRes = await fetch(`https://graph.facebook.com/v24.0/me?fields=id,name,accounts{name,id,instagram_business_account}&access_token=${ACCESS_TOKEN}`);
         const meData = await meRes.json();
+
         console.log("\n👤 IDENTITY:");
-        console.log(`- Name: ${meData.name}`);
-        console.log(`- ID: ${meData.id}`);
+        console.log(`- Token Owner: ${meData.name} (ID: ${meData.id})`);
+
+        if (meData.accounts && meData.accounts.data) {
+            console.log("\n📄 LINKED PAGES & IG ACCOUNTS:");
+            meData.accounts.data.forEach(page => {
+                console.log(`- Page: ${page.name} (ID: ${page.id})`);
+                if (page.instagram_business_account) {
+                    console.log(`  💎 IG Business Account ID: ${page.instagram_business_account.id} <--- USE THIS FOR FB_IG_BUSINESS_ID`);
+                } else {
+                    console.log(`  ⚠️ No Instagram account linked to this page.`);
+                }
+            });
+        } else {
+            // Check if it's already a Page Token
+            const pageRes = await fetch(`https://graph.facebook.com/v24.0/me?fields=id,name,instagram_business_account&access_token=${ACCESS_TOKEN}`);
+            const pageData = await pageRes.json();
+            console.log(`- Active Object: ${pageData.name} (ID: ${pageData.id})`);
+            if (pageData.instagram_business_account) {
+                console.log(`  💎 IG Business Account ID: ${pageData.instagram_business_account.id} <--- USE THIS FOR FB_IG_BUSINESS_ID`);
+            } else {
+                console.log(`  ⚠️ This token object has no linked Instagram Business account.`);
+            }
+        }
         console.log("-----------------------------------\n");
 
     } catch (error) {

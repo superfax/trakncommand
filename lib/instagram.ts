@@ -33,10 +33,10 @@ export interface ReplyResponse {
 /**
  * Reply to an Instagram comment publicly AND send a direct DM.
  *
- * @param recipientIgsid - IGSID from webhook value.from.id
- * @param commentReply   - The public "teaser" message for the comment
- * @param dmReply        - The private "value" message for the DM
- * @param commentId      - The IG comment ID to reply to publicly
+ * @param recipientIgsid - IGSID/PSID from webhook
+ * @param commentReply   - The public teaser
+ * @param dmReply        - The private content
+ * @param commentId      - The ID of the comment being replied to
  */
 export async function sendPrivateReply(
     recipientIgsid: string,
@@ -44,6 +44,8 @@ export async function sendPrivateReply(
     dmReply: string,
     commentId?: string
 ): Promise<ReplyResponse> {
+    const FB_PAGE_ID = process.env.FB_PAGE_ID || IG_BUSINESS_ACCOUNT_ID;
+
     if (!ACCESS_TOKEN) {
         console.error("[IG] Missing FB_ACCESS_TOKEN");
         return { success: false, publicOk: false, privateOk: false, errorText: "Missing Access Token" };
@@ -55,11 +57,12 @@ export async function sendPrivateReply(
         privateOk: false
     };
 
-    let lastError = "";
+    let publicError = "";
+    let privateError = "";
 
-    // Strategy 1: Public comment reply
+    // 1. PUBLIC COMMENT REPLY
     if (commentId && commentReply) {
-        console.log(`[IG] Replying to comment ${commentId} with: "${commentReply}"`);
+        console.log(`[IG] Public Reply to ${commentId}...`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v24.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
@@ -71,22 +74,20 @@ export async function sendPrivateReply(
             );
             const data = await res.json();
             if (!data.error && (data.id || data.success)) {
-                console.log("[IG] ✅ Public comment reply sent!");
+                console.log("[IG] ✅ Public comment OK");
                 result.publicOk = true;
             } else {
-                const err = data.error?.message || JSON.stringify(data);
-                console.warn("[IG] Public reply failed:", err);
-                lastError = `Comment: ${err}`;
+                publicError = data.error?.message || "Public reply error";
+                console.warn("[IG] Public reply failed:", publicError);
             }
         } catch (e: any) {
-            console.error("[IG] Public reply threw:", e);
-            lastError = `Comment Exception: ${e.message}`;
+            publicError = e.message;
         }
     }
 
-    // Strategy 2: Official Private Reply (Comment -> DM)
+    // 2. STRATEGY A: Official Private Reply (The "Private Reply" feature)
     if (commentId && dmReply) {
-        console.log(`[IG] Attempting Official Private Reply for comment ${commentId}...`);
+        console.log(`[IG] Trying Official Private Reply on ${commentId}...`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v24.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
@@ -97,65 +98,63 @@ export async function sendPrivateReply(
                 }
             );
             const data = await res.json();
-
-            // LOG THE FULL RESPONSE for debugging
-            console.log(`[IG] Official Private Reply Response:`, JSON.stringify(data));
-
             if (!data.error && (data.id || data.success)) {
-                console.log("[IG] ✅ Private Reply (DM) sent via official API!");
+                console.log("[IG] ✅ Official Private Reply OK");
                 result.privateOk = true;
             } else {
-                const err = data.error?.message || JSON.stringify(data);
-                console.warn("[IG] Official Private Reply failed:", err);
-                lastError = `DM (Official): ${err}`;
-
-                // Add specific Meta Debug Info to help the user
-                if (data.error?.code === 10) lastError += " (Possible account restriction or business logic)";
-                if (data.error?.code === 200) lastError += " (Permissions: instagram_manage_comments required)";
+                privateError = `Official Method: ${data.error?.message || JSON.stringify(data)}`;
+                console.warn("[IG] Official Private Reply failed, trying fallback...");
             }
         } catch (e: any) {
-            console.error("[IG] Official Private Reply threw:", e);
-            lastError = `DM Exception: ${e.message}`;
+            privateError = `Official Method Exception: ${e.message}`;
         }
     }
 
-    // Strategy 3: Direct DM via IGSID (Fallback)
+    // 3. STRATEGY B: General Messaging Fallback (Requires interaction history usually)
+    // We try two different base IDs: The IG Business ID and the Page ID
     if (!result.privateOk && recipientIgsid && dmReply) {
-        console.log(`[IG] Falling back to Direct DM for IGSID ${recipientIgsid}... (Using ID: ${IG_BUSINESS_ACCOUNT_ID})`);
-        try {
-            const res = await fetch(
-                `https://graph.facebook.com/v24.0/${IG_BUSINESS_ACCOUNT_ID}/messages?access_token=${ACCESS_TOKEN}`,
-                {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        recipient: { id: recipientIgsid },
-                        message: { text: dmReply }
-                    })
-                }
-            );
-            const data = await res.json();
-            console.log(`[IG] Fallback DM Response:`, JSON.stringify(data));
+        const potentialBaseIds = [IG_BUSINESS_ACCOUNT_ID, FB_PAGE_ID];
 
-            if (!data.error) {
-                console.log("[IG] ✅ DM sent via general Messaging API:", data.message_id);
-                result.privateOk = true;
-            } else {
-                const err = data.error?.message || JSON.stringify(data);
-                console.error("[IG] Direct DM fallback failed:", err);
-                // We keep the original error if it was a strategy 2 failure as it's more specific
-                if (!lastError.includes("DM")) lastError = `DM (Fallback): ${err}`;
+        for (const baseId of potentialBaseIds) {
+            if (!baseId || baseId === "undefined") continue;
+
+            console.log(`[IG] Fallback DM attempt via base ID: ${baseId}...`);
+            try {
+                const res = await fetch(
+                    `https://graph.facebook.com/v24.0/${baseId}/messages?access_token=${ACCESS_TOKEN}`,
+                    {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            recipient: { id: recipientIgsid },
+                            message: { text: dmReply }
+                        })
+                    }
+                );
+                const data = await res.json();
+                if (!data.error) {
+                    console.log(`[IG] ✅ Fallback DM OK (via ${baseId})`);
+                    result.privateOk = true;
+                    break;
+                } else {
+                    const fallbackError = data.error?.message || JSON.stringify(data);
+                    console.warn(`[IG] Fallback via ${baseId} failed:`, fallbackError);
+                    privateError += ` | Fallback (${baseId}): ${fallbackError}`;
+                }
+            } catch (e: any) {
+                console.error(`[IG] Fallback via ${baseId} threw:`, e.message);
             }
-        } catch (e: any) {
-            console.error("[IG] Direct DM threw:", e);
         }
     }
 
     result.success = result.publicOk || result.privateOk;
+
     if (!result.success) {
-        result.errorText = lastError;
-    } else if (!result.publicOk || !result.privateOk) {
-        result.errorText = `Partial Success: ${lastError}`;
+        result.errorText = `Workflow Failed. Public: ${publicError} | DM: ${privateError}`;
+    } else if (!result.privateOk) {
+        result.errorText = `DM FAILED: ${privateError}`;
+    } else if (!result.publicOk) {
+        result.errorText = `COMMENT FAILED: ${publicError}`;
     }
 
     return result;
