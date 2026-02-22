@@ -1,11 +1,32 @@
-import { getSupabase } from "./supabase";
 import { Lead } from "@/components/MiniCRM";
 import { ActivityItem } from "@/components/LiveActivityFeed";
+
+async function getClient() {
+    const { createClient } = await import('@supabase/supabase-js');
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+
+    if (!url || !key) {
+        console.warn("[Storage] Missing Supabase credentials. Returning mock client.");
+        return {
+            from: () => ({
+                select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }),
+                upsert: () => Promise.resolve({ error: null }),
+                delete: () => ({ eq: () => ({ neq: () => Promise.resolve({ error: null }) }) }),
+                update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+                single: () => Promise.resolve({ data: null, error: null })
+            })
+        } as any;
+    }
+
+    return createClient(url, key);
+}
 
 // --- LEADS ---
 
 export async function getLeads(): Promise<Lead[]> {
-    const { data, error } = await getSupabase()
+    const client = await getClient();
+    const { data, error } = await client
         .from('leads')
         .select('*')
         .order('timestamp', { ascending: false });
@@ -18,11 +39,10 @@ export async function getLeads(): Promise<Lead[]> {
 }
 
 export async function saveLead(lead: Lead): Promise<void> {
-    // Enrich with Instagram profile photo + display name
     const enriched = { ...lead };
     try {
         const token = process.env.FB_ACCESS_TOKEN;
-        const isNumericId = /^\d+$/.test(lead.id); // Real IGSIDs are purely numeric
+        const isNumericId = /^\d+$/.test(lead.id);
 
         if (token && lead.id && isNumericId) {
             const res = await fetch(
@@ -38,7 +58,8 @@ export async function saveLead(lead: Lead): Promise<void> {
         console.warn("[Storage] Could not enrich lead profile:", e);
     }
 
-    const { error } = await getSupabase()
+    const client = await getClient();
+    const { error } = await client
         .from('leads')
         .upsert(enriched, { onConflict: 'id' });
 
@@ -48,20 +69,22 @@ export async function saveLead(lead: Lead): Promise<void> {
 }
 
 export async function hasContactedUser(userId: string): Promise<boolean> {
-    const { data, error } = await getSupabase()
+    const client = await getClient();
+    const { data, error } = await client
         .from('leads')
         .select('id')
         .eq('id', userId)
         .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 is 'no rows'
+    if (error && error.code !== 'PGRST116') {
         console.error("[Supabase] Error checking contacted user:", error);
     }
     return !!data;
 }
 
 export async function deleteLead(leadId: string): Promise<void> {
-    const { error } = await getSupabase()
+    const client = await getClient();
+    const { error } = await client
         .from('leads')
         .delete()
         .eq('id', leadId);
@@ -72,10 +95,11 @@ export async function deleteLead(leadId: string): Promise<void> {
 }
 
 export async function purgeLeads(): Promise<void> {
-    const { error } = await getSupabase()
+    const client = await getClient();
+    const { error } = await client
         .from('leads')
         .delete()
-        .neq('id', '0'); // Hack to delete all if primary key is string
+        .neq('id', '0');
 
     if (error) {
         console.error("[Supabase] Error purging leads:", error);
@@ -85,10 +109,11 @@ export async function purgeLeads(): Promise<void> {
 // --- ACTIVITY LOGS ---
 
 export async function getActivity(): Promise<ActivityItem[]> {
-    const { data, error } = await getSupabase()
+    const client = await getClient();
+    const { data, error } = await client
         .from('activity')
         .select('*')
-        .order('id', { ascending: false }) // rx-timestamp based ID or just created_at
+        .order('id', { ascending: false })
         .limit(50);
 
     if (error) {
@@ -99,7 +124,8 @@ export async function getActivity(): Promise<ActivityItem[]> {
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
-    const { error } = await getSupabase()
+    const client = await getClient();
+    const { error } = await client
         .from('activity')
         .upsert(item, { onConflict: 'id' });
 
@@ -113,7 +139,8 @@ export async function updateActivityStatus(
     status: "sent" | "failed",
     replyText?: string
 ): Promise<void> {
-    const { data: items, error: fetchError } = await getSupabase()
+    const client = await getClient();
+    const { data: items, error: fetchError } = await client
         .from('activity')
         .select('*')
         .eq('commentId', commentId)
@@ -122,7 +149,7 @@ export async function updateActivityStatus(
     if (fetchError || !items || items.length === 0) return;
 
     const item = items[0];
-    const { error: updateError } = await getSupabase()
+    const { error: updateError } = await client
         .from('activity')
         .update({ status, replyText })
         .eq('id', item.id);
