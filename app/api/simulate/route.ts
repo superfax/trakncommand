@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
                 const delay = Math.floor(Math.random() * 10000) + 3000; // 3-13s for simulation
                 await wait(delay);
 
-                const success = await sendPrivateReply(fakeUserId, "https://trakn.pro/early-access");
+                const success = await sendPrivateReply(fakeUserId, settings.autoReply, settings.dmReply);
 
                 await logActivity({
                     id: `${success ? "sent" : "fail"}-${Date.now()}`,

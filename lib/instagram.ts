@@ -24,17 +24,17 @@ export async function likeComment(commentId: string): Promise<boolean> {
 }
 
 /**
- * Reply to an Instagram comment publicly using the configured auto-reply message.
- * Primary strategy: POST /{ig-comment-id}/replies (needs instagram_manage_comments only)
- * Fallback: Direct DM via messages API (needs Advanced Access)
+ * Reply to an Instagram comment publicly AND send a direct DM.
  *
  * @param recipientIgsid - IGSID from webhook value.from.id
- * @param replyText      - The configured auto-reply message from settings
+ * @param commentReply   - The public "teaser" message for the comment
+ * @param dmReply        - The private "value" message for the DM
  * @param commentId      - The IG comment ID to reply to publicly
  */
 export async function sendPrivateReply(
     recipientIgsid: string,
-    replyText: string,
+    commentReply: string,
+    dmReply: string,
     commentId?: string
 ): Promise<boolean> {
     if (!ACCESS_TOKEN) {
@@ -44,16 +44,16 @@ export async function sendPrivateReply(
 
     let success = false;
 
-    // Strategy 1: Public comment reply (works with instagram_manage_comments)
-    if (commentId) {
-        console.log(`[IG] Replying to comment ${commentId} with: "${replyText}"`);
+    // Strategy 1: Public comment reply
+    if (commentId && commentReply) {
+        console.log(`[IG] Replying to comment ${commentId} with: "${commentReply}"`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v19.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ message: replyText })
+                    body: JSON.stringify({ message: commentReply })
                 }
             );
             const data = await res.json();
@@ -69,7 +69,7 @@ export async function sendPrivateReply(
     }
 
     // Strategy 2: Direct DM via IGSID (requires Advanced Access)
-    if (recipientIgsid) {
+    if (recipientIgsid && dmReply) {
         console.log(`[IG] Attempting DM to IGSID ${recipientIgsid}...`);
         try {
             const res = await fetch(
@@ -79,7 +79,7 @@ export async function sendPrivateReply(
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         recipient: { id: recipientIgsid },
-                        message: { text: replyText }
+                        message: { text: dmReply }
                     })
                 }
             );
@@ -88,6 +88,8 @@ export async function sendPrivateReply(
                 console.log("[IG] ✅ DM sent via IGSID:", data.message_id);
                 success = true;
             } else {
+                // If this fails, we don't mark the whole thing as failure if the comment worked, 
+                // but we log it for the user to see in Dash.
                 console.error("[IG] DM failed (needs Advanced Access):", JSON.stringify(data.error));
             }
         } catch (e) {

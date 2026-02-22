@@ -10,12 +10,14 @@ export interface Settings {
     isSystemOnline: boolean;
     macros: Macro[];
     autoReply: string;
+    dmReply: string;
 }
 
 const DEFAULT_SETTINGS: Settings = {
     keyword: "PRO",
     isSystemOnline: true, // Default to true for new setups
     autoReply: "Check Dm for Your Access. :)",
+    dmReply: "Here is your exclusive access! 🚀 Click here: https://trakn.pro/access",
     macros: [
         { label: "⚡ Pricing", text: "Hey! Our plans start at $29/mo. Check trakn.pro/pricing 🚀" },
         { label: "📞 Call", text: "Let's chat! Book a demo here: trakn.pro/demo 📅" },
@@ -43,6 +45,7 @@ export async function getSettings(): Promise<Settings> {
         keyword: data.keyword || DEFAULT_SETTINGS.keyword,
         isSystemOnline: typeof data.is_system_online === 'boolean' ? data.is_system_online : (typeof data.isSystemOnline === 'boolean' ? data.isSystemOnline : DEFAULT_SETTINGS.isSystemOnline),
         autoReply: data.auto_reply || data.autoReply || DEFAULT_SETTINGS.autoReply,
+        dmReply: data.dm_reply || data.dmReply || DEFAULT_SETTINGS.dmReply,
         macros: Array.isArray(data.macros) ? data.macros : DEFAULT_SETTINGS.macros
     };
 }
@@ -68,6 +71,7 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
     if (settings.keyword !== undefined) dbUpdate.keyword = settings.keyword;
     if (settings.isSystemOnline !== undefined) dbUpdate.isSystemOnline = settings.isSystemOnline;
     if (settings.autoReply !== undefined) dbUpdate.autoReply = settings.autoReply;
+    if (settings.dmReply !== undefined) dbUpdate.dmReply = settings.dmReply;
     if (settings.macros !== undefined) dbUpdate.macros = settings.macros;
 
     const { error } = await client
@@ -81,6 +85,7 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
             if (settings.keyword !== undefined) snakeUpdate.keyword = settings.keyword;
             if (settings.isSystemOnline !== undefined) snakeUpdate.is_system_online = settings.isSystemOnline;
             if (settings.autoReply !== undefined) snakeUpdate.auto_reply = settings.autoReply;
+            if (settings.dmReply !== undefined) snakeUpdate.dm_reply = settings.dmReply;
             if (settings.macros !== undefined) snakeUpdate.macros = settings.macros;
             await client.from('settings').upsert(snakeUpdate, { onConflict: 'id' });
         } else {

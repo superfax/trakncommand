@@ -11,27 +11,21 @@ export async function GET() {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
+        const { saveSettings, getSettings } = await import("@/lib/settings");
 
-        // Handle System Status Toggle
-        if (typeof body.isSystemOnline === "boolean") {
-            await toggleSystemStatus(body.isSystemOnline);
-        }
-
-        // Handle Keyword Update
-        if (typeof body.keyword === "string") {
-            const { saveKeyword } = await import("@/lib/settings");
-            await saveKeyword(body.keyword);
-        }
-
-        // Handle Macros Update
-        if (Array.isArray(body.macros)) {
-            const { saveMacros } = await import("@/lib/settings");
-            await saveMacros(body.macros);
-        }
+        // Use the generic saveSettings for all valid fields
+        await saveSettings({
+            keyword: body.keyword,
+            isSystemOnline: body.isSystemOnline,
+            autoReply: body.autoReply,
+            dmReply: body.dmReply,
+            macros: body.macros
+        });
 
         const updatedSettings = await getSettings();
         return NextResponse.json(updatedSettings);
     } catch (error) {
+        console.error("[Settings API] POST Error:", error);
         return NextResponse.json({ error: "Internal Error" }, { status: 500 });
     }
 }

@@ -157,14 +157,19 @@ async function processWebhookEvent(body: any) {
                     console.log(`Waiting ${delay}ms...`);
                     await wait(delay);
 
-                    // 3. Reply using the configured auto-reply message from settings
-                    const success = await sendPrivateReply(userId, settings.autoReply, isDM ? undefined : commentId);
+                    // 3. Reply using separate comment and DM messages from settings
+                    const success = await sendPrivateReply(
+                        userId,
+                        settings.autoReply,
+                        settings.dmReply,
+                        isDM ? undefined : commentId
+                    );
 
                     if (success) {
-                        console.log("Reply Sent Successfully.");
-                        await updateActivityStatus(commentId, "sent", settings.autoReply);
+                        console.log("Automation Sequence Successful.");
+                        await updateActivityStatus(commentId, "sent", settings.dmReply); // Log the DM text in Dash
                     } else {
-                        await updateActivityStatus(commentId, "failed", "Reply failed to send");
+                        await updateActivityStatus(commentId, "failed", "Reply sequence failed");
                     }
                 }
             }

@@ -26,6 +26,11 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
     const [autoReply, setAutoReply] = useState("");
     const [tempAutoReply, setTempAutoReply] = useState("");
     const [isEditingAutoReply, setIsEditingAutoReply] = useState(false);
+
+    const [dmReply, setDmReply] = useState("");
+    const [tempDmReply, setTempDmReply] = useState("");
+    const [isEditingDmReply, setIsEditingDmReply] = useState(false);
+
     const [copiedMacroIdx, setCopiedMacroIdx] = useState<number | null>(null);
 
     // Edit States
@@ -46,6 +51,7 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                 if (data.keyword) setKeyword(data.keyword);
                 if (data.macros) setMacros(data.macros);
                 if (data.autoReply) { setAutoReply(data.autoReply); setTempAutoReply(data.autoReply); }
+                if (data.dmReply) { setDmReply(data.dmReply); setTempDmReply(data.dmReply); }
             });
     }, []);
 
@@ -77,6 +83,23 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
             });
             setAutoReply(tempAutoReply);
             setIsEditingAutoReply(false);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const saveDmReply = async () => {
+        setIsSaving(true);
+        try {
+            await fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ dmReply: tempDmReply })
+            });
+            setDmReply(tempDmReply);
+            setIsEditingDmReply(false);
         } catch (e) {
             console.error(e);
         } finally {
@@ -176,16 +199,16 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                 </div>
                             )}
                             <p className="mt-4 text-[10px] text-gray-500 text-center leading-relaxed font-sans opacity-60">
-                                Comments with this keyword activate the automated DM engine.
+                                Comments with this keyword activate the automated engine.
                             </p>
                         </div>
 
-                        {/* Reply Section */}
+                        {/* Comment Reply Section */}
                         <div className="glass-panel p-5 relative group/item">
                             <div className="flex items-center justify-between mb-4">
                                 <div className="flex items-center gap-2">
                                     <div className="w-1 h-4 bg-brand-purple rounded-full" />
-                                    <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Global Auto-Reply</span>
+                                    <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Public Comment Reply</span>
                                 </div>
                                 {!isEditingAutoReply ? (
                                     <button onClick={() => { setTempAutoReply(autoReply); setIsEditingAutoReply(true); }} className="p-1.5 hover:bg-white/5 rounded-[4px] text-gray-500 hover:text-white transition-all">
@@ -203,12 +226,45 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                     autoFocus
                                     value={tempAutoReply}
                                     onChange={(e) => setTempAutoReply(e.target.value)}
-                                    className="w-full bg-black/40 border border-brand-purple/40 px-4 py-3 text-white font-sans text-xs focus:outline-none rounded-[8px] h-24 resize-none shadow-inner"
+                                    className="w-full bg-black/40 border border-brand-purple/40 px-4 py-3 text-white font-sans text-xs focus:outline-none rounded-[8px] h-20 resize-none shadow-inner"
                                     placeholder="Check your DM for access! 🚀"
                                 />
                             ) : (
-                                <div className="w-full bg-black/20 border border-white/5 px-4 py-3 text-gray-300 font-sans text-xs leading-relaxed min-h-[60px] rounded-[8px] group-hover/item:border-brand-purple/20 transition-all flex items-center justify-center text-center">
-                                    {autoReply || <span className="text-gray-600 italic">No reply message established.</span>}
+                                <div className="w-full bg-black/20 border border-white/5 px-4 py-3 text-gray-300 font-sans text-xs leading-relaxed min-h-[50px] rounded-[8px] group-hover/item:border-brand-purple/20 transition-all flex items-center justify-center text-center">
+                                    {autoReply || <span className="text-gray-600 italic">No public reply established.</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* DM Reply Section */}
+                        <div className="glass-panel p-5 relative group/item border-brand-purple/10">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1 h-4 bg-brand-purple rounded-full" />
+                                    <span className="text-[10px] font-bold tracking-widest text-brand-purple uppercase">Private DM Message</span>
+                                </div>
+                                {!isEditingDmReply ? (
+                                    <button onClick={() => { setTempDmReply(dmReply); setIsEditingDmReply(true); }} className="p-1.5 hover:bg-white/5 rounded-[4px] text-gray-500 hover:text-white transition-all">
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                ) : (
+                                    <button onClick={saveDmReply} disabled={isSaving} className="p-1.5 hover:bg-brand-purple/20 rounded-[4px] text-brand-purple hover:text-white transition-all">
+                                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                    </button>
+                                )}
+                            </div>
+
+                            {isEditingDmReply ? (
+                                <textarea
+                                    autoFocus
+                                    value={tempDmReply}
+                                    onChange={(e) => setTempDmReply(e.target.value)}
+                                    className="w-full bg-black/40 border border-brand-purple/40 px-4 py-3 text-white font-sans text-xs focus:outline-none rounded-[8px] h-24 resize-none shadow-inner"
+                                    placeholder="Here is your link: ..."
+                                />
+                            ) : (
+                                <div className="w-full bg-black/20 border border-brand-purple/10 px-4 py-3 text-gray-300 font-sans text-xs leading-relaxed min-h-[60px] rounded-[8px] group-hover/item:border-brand-purple/20 transition-all flex items-center justify-center text-center">
+                                    {dmReply || <span className="text-gray-600 italic">No private message established.</span>}
                                 </div>
                             )}
                         </div>
