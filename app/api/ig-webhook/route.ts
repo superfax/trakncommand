@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import { appendFileSync, writeFileSync } from "fs";
+import { join } from "path";
 import { getSettings } from "@/lib/settings";
 import { saveLead, hasContactedUser, logActivity, updateActivityStatus } from "@/lib/storage";
 import { sendPrivateReply, likeComment, wait } from "@/lib/instagram";
@@ -27,7 +29,7 @@ export async function GET(req: NextRequest) {
 async function processWebhookEvent(body: any) {
     try {
         const settings = await getSettings();
-        console.log(`[Webhook] Settings Loaded: Online=${settings.isSystemOnline}, Keyword="${settings.keyword}"`);
+        console.log(`[Webhook] Settings Loaded: Online = ${settings.isSystemOnline}, Keyword = "${settings.keyword}"`);
 
         // Safety Check 1: Master Toggle
         if (!settings.isSystemOnline) {
@@ -46,7 +48,7 @@ async function processWebhookEvent(body: any) {
                     if (msg.message && msg.message.text) {
                         interactions.push({
                             userId: msg.sender?.id,
-                            username: `User_${msg.sender?.id?.toString().slice(-4)}`,
+                            username: `User_${msg.sender?.id?.toString().slice(-4)} `,
                             commentText: msg.message.text,
                             commentId: msg.message.mid,
                             isDM: true,
@@ -69,7 +71,7 @@ async function processWebhookEvent(body: any) {
                         const from = value.from || {};
                         interactions.push({
                             userId: from.id,
-                            username: from.name || from.username || `User_${from.id?.toString().slice(-4)}`,
+                            username: from.name || from.username || `User_${from.id?.toString().slice(-4)} `,
                             commentText: change.field === "feed" ? value.message : (value.text || ""),
                             commentId: change.field === "feed" ? value.comment_id : value.id,
                             parentId: value.parent_id,
@@ -92,7 +94,7 @@ async function processWebhookEvent(body: any) {
                     commentText === settings.autoReply;
 
                 if (isSelf) {
-                    console.log(`⏭️ Ignoring self-interaction from ${username}`);
+                    console.log(`⏭️ Ignoring self - interaction from ${username} `);
                     continue;
                 }
 
@@ -100,7 +102,7 @@ async function processWebhookEvent(body: any) {
 
                 // Log initial receipt (Now uses mapped snake_case in storage.ts)
                 await logActivity({
-                    id: `rx-${Date.now()}`,
+                    id: `rx - ${Date.now()} `,
                     handle: username,
                     comment: isDM ? `📩 (DM): ${commentText}` : commentText,
                     status: "pending",
@@ -118,9 +120,9 @@ async function processWebhookEvent(body: any) {
                     // Safety Check 2: Duplicate / Cooldown
                     const alreadyContacted = await hasContactedUser(userId);
                     if (alreadyContacted) {
-                        console.log(`⚠️ User ${username} already contacted. Skipping.`);
+                        console.log(`⚠️ User ${username} already contacted.Skipping.`);
                         await logActivity({
-                            id: `skip-${Date.now()}`,
+                            id: `skip - ${Date.now()} `,
                             handle: username,
                             comment: "Duplicate skipped",
                             status: "failed",
@@ -171,11 +173,11 @@ async function processWebhookEvent(body: any) {
                         // Construct status label
                         let statusText = "";
                         if (isDM) {
-                            statusText = result.privateOk ? `📩 DM Sent: "${settings.dmReply.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText}`;
+                            statusText = result.privateOk ? `📩 DM Sent: "${settings.dmReply.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText} `;
                         } else {
                             const cStatus = result.publicOk ? "💬 Comment ✅" : "💬 Comment ❌";
                             const dStatus = result.privateOk ? "📩 DM ✅" : "📩 DM ❌";
-                            statusText = `${cStatus} | ${dStatus}`;
+                            statusText = `${cStatus} | ${dStatus} `;
 
                             // If DM failed, show the link we tried to send
                             if (!result.privateOk) {
@@ -187,7 +189,7 @@ async function processWebhookEvent(body: any) {
 
                         await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
                     } else {
-                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"}`);
+                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"} `);
                     }
                 }
             }
@@ -200,6 +202,20 @@ async function processWebhookEvent(body: any) {
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
+
+        // --- DIAGNOSTIC LOGGING ---
+        try {
+            const logPath = join(process.cwd(), "data", "last_webhook.json");
+            writeFileSync(logPath, JSON.stringify({
+                timestamp: new Date().toISOString(),
+                body
+            }, null, 2));
+            console.log("[DEBUG] Webhook payload saved to data/last_webhook.json");
+        } catch (e) {
+            console.error("[DEBUG] Failed to save webhook log:", e);
+        }
+        // ---------------------------
+
         const bodyStr = JSON.stringify(body, null, 2);
         console.log("📥 WEBHOOK RECEIVED:", bodyStr);
 
@@ -208,7 +224,7 @@ export async function POST(req: NextRequest) {
             await processWebhookEvent(body);
             return new NextResponse("EVENT_RECEIVED", { status: 200 });
         } else {
-            console.warn(`[Webhook] Ignored object type: ${body.object}`);
+            console.warn(`[Webhook] Ignored object type: ${body.object} `);
             return new NextResponse("Not Found", { status: 404 });
         }
     } catch (error) {

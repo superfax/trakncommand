@@ -44,7 +44,8 @@ export async function sendPrivateReply(
     dmReply: string,
     commentId?: string
 ): Promise<ReplyResponse> {
-    const FB_PAGE_ID = process.env.FB_PAGE_ID || IG_BUSINESS_ACCOUNT_ID;
+    const FB_PAGE_ID = process.env.FB_PAGE_ID;
+    const IG_BIZ_ID = process.env.FB_IG_BUSINESS_ID || IG_BUSINESS_ACCOUNT_ID;
 
     if (!ACCESS_TOKEN) {
         console.error("[IG] Missing FB_ACCESS_TOKEN");
@@ -77,7 +78,7 @@ export async function sendPrivateReply(
                 console.log("[IG] ✅ Public comment OK");
                 result.publicOk = true;
             } else {
-                publicError = data.error?.message || "Public reply error";
+                publicError = data.error?.message || JSON.stringify(data);
                 console.warn("[IG] Public reply failed:", publicError);
             }
         } catch (e: any) {
@@ -85,7 +86,7 @@ export async function sendPrivateReply(
         }
     }
 
-    // 2. STRATEGY A: Official Private Reply (The "Private Reply" feature)
+    // 2. STRATEGY A: Official Private Reply
     if (commentId && dmReply) {
         console.log(`[IG] Trying Official Private Reply on ${commentId}...`);
         try {
@@ -102,23 +103,20 @@ export async function sendPrivateReply(
                 console.log("[IG] ✅ Official Private Reply OK");
                 result.privateOk = true;
             } else {
-                privateError = `Official Method: ${data.error?.message || JSON.stringify(data)}`;
-                console.warn("[IG] Official Private Reply failed, trying fallback...");
+                privateError = `Official: ${data.error?.message || JSON.stringify(data)}`;
+                console.warn("[IG] Official Private Reply failed.");
             }
         } catch (e: any) {
             privateError = `Official Method Exception: ${e.message}`;
         }
     }
 
-    // 3. STRATEGY B: General Messaging Fallback (Requires interaction history usually)
-    // We try two different base IDs: The IG Business ID and the Page ID
+    // 3. STRATEGY B: General Messaging Fallback
     if (!result.privateOk && recipientIgsid && dmReply) {
-        const potentialBaseIds = [IG_BUSINESS_ACCOUNT_ID, FB_PAGE_ID];
+        const potentialBaseIds = [IG_BIZ_ID, FB_PAGE_ID].filter(id => id && id !== "undefined");
 
         for (const baseId of potentialBaseIds) {
-            if (!baseId || baseId === "undefined") continue;
-
-            console.log(`[IG] Fallback DM attempt via base ID: ${baseId}...`);
+            console.log(`[IG] Fallback DM attempt via ${baseId}...`);
             try {
                 const res = await fetch(
                     `https://graph.facebook.com/v24.0/${baseId}/messages?access_token=${ACCESS_TOKEN}`,
@@ -150,7 +148,7 @@ export async function sendPrivateReply(
     result.success = result.publicOk || result.privateOk;
 
     if (!result.success) {
-        result.errorText = `Workflow Failed. Public: ${publicError} | DM: ${privateError}`;
+        result.errorText = `Failed. Public: ${publicError || "N/A"} | DM: ${privateError || "N/A"}`;
     } else if (!result.privateOk) {
         result.errorText = `DM FAILED: ${privateError}`;
     } else if (!result.publicOk) {
