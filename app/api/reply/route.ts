@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { logActivity, getActivity, updateActivityStatus } from "@/lib/storage";
+
+export const dynamic = 'force-dynamic';
 import { replyToComment } from "@/lib/instagram";
 
 export async function POST(req: NextRequest) {

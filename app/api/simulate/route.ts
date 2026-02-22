@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSettings } from "@/lib/settings";
 import { logActivity, saveLead, hasContactedUser } from "@/lib/storage";
+
+export const dynamic = 'force-dynamic';
 import { likeComment, sendPrivateReply, wait } from "@/lib/instagram";
 
 const TEST_HANDLES = ["dj_nova", "beatmaster99", "producer_vibe", "lowkeyartist", "thekid_wavey"];
