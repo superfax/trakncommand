@@ -161,11 +161,19 @@ async function processWebhookEvent(body: any) {
                     console.log(`Waiting ${delay}ms...`);
                     await wait(delay);
 
-                    // 3. Reply using separate comment and DM messages from settings
+                    // 🛠️ MACRO REPLACEMENT
+                    const personalize = (text: string) => {
+                        return text.replace(/\[USERNAME\]/g, username || "there");
+                    };
+
+                    const finalPublicReply = personalize(settings.autoReply);
+                    const finalDmReply = personalize(settings.dmReply);
+
+                    // 4. Send the personalized replies
                     const result = await sendPrivateReply(
                         userId,
-                        settings.autoReply,
-                        settings.dmReply,
+                        finalPublicReply,
+                        finalDmReply,
                         isDM ? undefined : commentId
                     );
 
