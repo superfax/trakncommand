@@ -41,8 +41,8 @@ export async function getSettings(): Promise<Settings> {
 
     return {
         keyword: data.keyword || DEFAULT_SETTINGS.keyword,
-        isSystemOnline: typeof data.is_system_online === 'boolean' ? data.is_system_online : DEFAULT_SETTINGS.isSystemOnline,
-        autoReply: data.auto_reply || DEFAULT_SETTINGS.autoReply,
+        isSystemOnline: typeof data.is_system_online === 'boolean' ? data.is_system_online : (typeof data.isSystemOnline === 'boolean' ? data.isSystemOnline : DEFAULT_SETTINGS.isSystemOnline),
+        autoReply: data.auto_reply || data.autoReply || DEFAULT_SETTINGS.autoReply,
         macros: Array.isArray(data.macros) ? data.macros : DEFAULT_SETTINGS.macros
     };
 }
@@ -63,11 +63,20 @@ export async function saveMacros(macros: Macro[]): Promise<void> {
 export async function saveSettings(settings: Partial<Settings>): Promise<void> {
     const client = await getSupabaseClient();
 
-    // Convert to DB format
+    // Convert to DB format (Case-Resilient: Send both snake and camel)
     const dbUpdate: any = {};
     if (settings.keyword !== undefined) dbUpdate.keyword = settings.keyword;
-    if (settings.isSystemOnline !== undefined) dbUpdate.is_system_online = settings.isSystemOnline;
-    if (settings.autoReply !== undefined) dbUpdate.auto_reply = settings.autoReply;
+
+    if (settings.isSystemOnline !== undefined) {
+        dbUpdate.is_system_online = settings.isSystemOnline;
+        dbUpdate.isSystemOnline = settings.isSystemOnline;
+    }
+
+    if (settings.autoReply !== undefined) {
+        dbUpdate.auto_reply = settings.autoReply;
+        dbUpdate.autoReply = settings.autoReply;
+    }
+
     if (settings.macros !== undefined) dbUpdate.macros = settings.macros;
 
     const { error } = await client

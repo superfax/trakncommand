@@ -20,12 +20,12 @@ export async function getLeads(): Promise<Lead[]> {
         return [];
     }
 
-    // Map back to camelCase
+    // Map back to camelCase (check both snake and camel from DB)
     return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         name: row.name,
-        profilePic: row.profile_pic,
+        profilePic: row.profile_pic || row.profilePic,
         status: row.status,
         timestamp: row.timestamp,
         tags: row.tags
@@ -54,12 +54,13 @@ export async function saveLead(lead: Lead): Promise<void> {
 
     const client = await getSafeClient();
 
-    // Map to snake_case for Supabase
-    const dbLead = {
+    // Case-Resilient: Send both to satisfy any schema
+    const dbLead: any = {
         id: enriched.id,
         handle: enriched.handle,
         name: enriched.name,
         profile_pic: enriched.profilePic,
+        profilePic: enriched.profilePic, // Support camelCase
         status: enriched.status,
         timestamp: enriched.timestamp,
         tags: enriched.tags
@@ -82,18 +83,15 @@ export async function hasContactedUser(userId: string): Promise<boolean> {
         .eq('id', userId)
         .single();
 
-    if (error && error.code !== 'PGRST116') {
-        console.error("[Supabase] Error checking contacted user:", error);
-    }
-    return !!data;
+    return !!data && !error;
 }
 
-export async function deleteLead(leadId: string): Promise<void> {
+export async function deleteLead(id: string): Promise<void> {
     const client = await getSafeClient();
     const { error } = await client
         .from('leads')
         .delete()
-        .eq('id', leadId);
+        .eq('id', id);
 
     if (error) {
         console.error("[Supabase] Error deleting lead:", error);
@@ -119,7 +117,7 @@ export async function getActivities(): Promise<ActivityItem[]> {
     const { data, error } = await client
         .from('activity')
         .select('*')
-        .order('id', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(50);
 
     if (error) {
@@ -127,36 +125,41 @@ export async function getActivities(): Promise<ActivityItem[]> {
         return [];
     }
 
-    // Map back to camelCase
+    // Map back to camelCase (check both)
     return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         comment: row.comment,
         status: row.status,
         timestamp: row.timestamp,
-        replyText: row.reply_text,
-        postImage: row.post_image,
-        postCaption: row.post_caption,
-        commentId: row.comment_id,
-        userId: row.user_id
+        replyText: row.reply_text || row.replyText,
+        postImage: row.post_image || row.postImage,
+        postCaption: row.post_caption || row.postCaption,
+        commentId: row.comment_id || row.commentId,
+        userId: row.user_id || row.userId
     })) as ActivityItem[];
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
     const client = await getSafeClient();
 
-    // Map to snake_case
-    const dbItem = {
+    // Case-Resilient: Send both snake_case and camelCase
+    const dbItem: any = {
         id: item.id,
         handle: item.handle,
         comment: item.comment,
         status: item.status,
         timestamp: item.timestamp,
         reply_text: item.replyText,
+        replyText: item.replyText,
         post_image: item.postImage,
+        postImage: item.postImage,
         post_caption: item.postCaption,
+        postCaption: item.postCaption,
         comment_id: item.commentId,
-        user_id: item.userId
+        commentId: item.commentId,
+        user_id: item.userId,
+        userId: item.userId
     };
 
     const { error } = await client
@@ -164,6 +167,7 @@ export async function logActivity(item: ActivityItem): Promise<void> {
         .upsert(dbItem, { onConflict: 'id' });
 
     if (error) {
+        // If it still fails, it's likely a missing column. We log it but proceed to avoid blocking the bot.
         console.error("[Supabase] Error logging activity:", error);
     }
 }
@@ -174,18 +178,20 @@ export async function updateActivityStatus(
     replyText?: string
 ): Promise<void> {
     const client = await getSafeClient();
-    const { data: items, error: fetchError } = await client
-        .from('activity')
-        .select('*')
-        .eq('comment_id', commentId)
-        .eq('status', 'pending');
 
-    if (fetchError || !items || items.length === 0) return;
+    // Try to find by both column styles
+    const { data: itemsBySnake } = await client.from('activity').select('id').eq('comment_id', commentId).eq('status', 'pending');
+    const { data: itemsByCamel } = await client.from('activity').select('id').eq('commentId', commentId).eq('status', 'pending');
+
+    const items = [...(itemsBySnake || []), ...(itemsByCamel || [])];
+    if (items.length === 0) return;
 
     const item = items[0];
+    const updatePayload: any = { status, reply_text: replyText, replyText: replyText };
+
     const { error: updateError } = await client
         .from('activity')
-        .update({ status, reply_text: replyText })
+        .update(updatePayload)
         .eq('id', item.id);
 
     if (updateError) {
