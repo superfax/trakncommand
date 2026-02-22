@@ -7,7 +7,7 @@ export async function likeComment(commentId: string): Promise<boolean> {
     try {
         console.log(`[IG] Liking comment ${commentId}...`);
         const res = await fetch(
-            `https://graph.facebook.com/v25.0/${commentId}/likes?access_token=${ACCESS_TOKEN}`,
+            `https://graph.facebook.com/v22.0/${commentId}/likes?access_token=${ACCESS_TOKEN}`,
             { method: "POST" }
         );
         const data = await res.json();
@@ -62,7 +62,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Replying to comment ${commentId} with: "${commentReply}"`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v22.0/${commentId}/replies?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -89,7 +89,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Attempting Official Private Reply for comment ${commentId}...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v22.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -124,7 +124,7 @@ export async function sendPrivateReply(
         console.log(`[IG] Falling back to Direct DM for IGSID ${recipientIgsid}... (Using ID: ${IG_BUSINESS_ACCOUNT_ID})`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${IG_BUSINESS_ACCOUNT_ID}/messages?access_token=${ACCESS_TOKEN}`,
+                `https://graph.facebook.com/v22.0/${IG_BUSINESS_ACCOUNT_ID}/messages?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

@@ -27,7 +27,7 @@ async function subscribePage() {
         console.log(`✅ Found Page: ${me.name} (ID: ${PAGE_ID})`);
 
         // 2. Subscribe App to Page
-        const subRes = await fetch(`https://graph.facebook.com/v25.0/${PAGE_ID}/subscribed_apps?access_token=${ACCESS_TOKEN}`, {
+        const subRes = await fetch(`https://graph.facebook.com/v22.0/${PAGE_ID}/subscribed_apps?access_token=${ACCESS_TOKEN}`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

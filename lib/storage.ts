@@ -40,7 +40,7 @@ export async function saveLead(lead: Lead): Promise<void> {
 
         if (token && lead.id && isNumericId) {
             const res = await fetch(
-                `https://graph.facebook.com/v25.0/${lead.id}?fields=name,profile_pic,username&access_token=${token}`
+                `https://graph.facebook.com/v22.0/${lead.id}?fields=name,profile_pic,username&access_token=${token}`
             );
             const data = await res.json();
             if (!data.error) {
