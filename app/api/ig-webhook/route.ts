@@ -48,7 +48,7 @@ async function processWebhookEvent(body: any) {
                     if (msg.message && msg.message.text) {
                         interactions.push({
                             userId: msg.sender?.id,
-                            username: `User_${msg.sender?.id?.toString().slice(-4)} `,
+                            username: `User_${msg.sender?.id?.toString().slice(-4)}`,
                             commentText: msg.message.text,
                             commentId: msg.message.mid,
                             isDM: true,
@@ -69,9 +69,10 @@ async function processWebhookEvent(body: any) {
 
                     if (isInstagramComment || isFacebookComment) {
                         const from = value.from || {};
+                        const username = (from.username || from.name || `User_${from.id?.toString().slice(-4)}`).trim();
                         interactions.push({
                             userId: from.id,
-                            username: from.name || from.username || `User_${from.id?.toString().slice(-4)} `,
+                            username,
                             commentText: change.field === "feed" ? value.message : (value.text || ""),
                             commentId: change.field === "feed" ? value.comment_id : value.id,
                             parentId: value.parent_id,
@@ -161,12 +162,24 @@ async function processWebhookEvent(body: any) {
                     console.log(`Waiting ${delay}ms...`);
                     await wait(delay);
 
+                    // 🛠️ ADVANCED PERSONALIZATION
                     const personalize = (text: string) => {
-                        return text.replace(/\[USERNAME\]/gi, username || "there");
+                        let msg = text;
+                        // Replace macros
+                        msg = msg.replace(/\[USERNAME\]/gi, username);
+                        msg = msg.replace(/\[HANDLE\]/gi, username);
+
+                        // If it doesn't already start with @mention, prepend it for public replies
+                        if (!isDM && !msg.startsWith("@") && !msg.includes(username)) {
+                            msg = `@${username} ${msg}`;
+                        }
+                        return msg;
                     };
 
                     const finalPublicReply = personalize(settings.autoReply);
                     const finalDmReply = personalize(settings.dmReply);
+
+                    console.log(`[Webhook] Prepared Replies for ${username} - Public: "${finalPublicReply.slice(0, 20)}...", DM: "${finalDmReply.slice(0, 20)}..."`);
 
                     // 4. Send the personalized replies
                     const result = await sendPrivateReply(
