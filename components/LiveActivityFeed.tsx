@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { CheckCircle, Clock, AlertCircle, Send, X, MessageCircle, MoreHorizontal, Zap } from "lucide-react";
+import { CheckCircle, Clock, AlertCircle, Send, X, MessageCircle, MoreHorizontal, Zap, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface ActivityItem {
@@ -42,6 +42,20 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
     const [replyingId, setReplyingId] = useState<string | null>(null);
     const [replyText, setReplyText] = useState("");
     const [filter, setFilter] = useState<FilterStatus>("sent");
+    const [isPurging, setIsPurging] = useState(false);
+
+    const handlePurge = async () => {
+        if (!window.confirm("🔥 Purge ALL activity and leads? This cannot be undone.")) return;
+        setIsPurging(true);
+        try {
+            await fetch("/api/purge", { method: "POST" });
+            window.location.reload();
+        } catch (e) {
+            console.error("Purge failed", e);
+        } finally {
+            setIsPurging(false);
+        }
+    };
 
     const handleSend = (item: ActivityItem) => {
         if (!replyText.trim()) return;
@@ -122,9 +136,19 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
                         </button>
                     ))}
                 </div>
-                <button className="text-gray-500 hover:text-white p-1.5 rounded-[4px] hover:bg-white/5 transition-all">
-                    <MoreHorizontal className="w-4 h-4" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handlePurge}
+                        disabled={isPurging}
+                        title="Purge all activity & leads"
+                        className="text-red-500/40 hover:text-red-500 p-1.5 rounded-[4px] hover:bg-red-500/10 transition-all disabled:opacity-30"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                    </button>
+                    <button className="text-gray-500 hover:text-white p-1.5 rounded-[4px] hover:bg-white/5 transition-all">
+                        <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                </div>
             </div>
 
             {/* Feed Scroll Area */}
