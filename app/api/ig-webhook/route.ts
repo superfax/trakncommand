@@ -154,9 +154,9 @@ async function processWebhookEvent(body: any) {
                         tags: [randomTag] // New: AI Tagging
                     });
 
-                    // 2. Human Delay (5-45s)
-                    const minDelay = 5000;
-                    const maxDelay = 45000;
+                    // 2. Human Delay (2-8s) - Capped for Vercel 10s limit
+                    const minDelay = 2000;
+                    const maxDelay = 8000;
                     const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
 
                     console.log(`Waiting ${delay}ms...`);

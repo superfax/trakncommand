@@ -1,16 +1,4 @@
-import fs from "fs/promises";
-import path from "path";
-
-const SETTINGS_FILE = path.join(process.cwd(), "data", "settings.json");
-
-async function ensureDataDir() {
-    const dir = path.dirname(SETTINGS_FILE);
-    try {
-        await fs.access(dir);
-    } catch {
-        await fs.mkdir(dir, { recursive: true });
-    }
-}
+import { getSupabaseClient } from "./supabase";
 
 export interface Macro {
     label: string;
@@ -24,33 +12,39 @@ export interface Settings {
     autoReply: string;
 }
 
+const DEFAULT_SETTINGS: Settings = {
+    keyword: "PRO",
+    isSystemOnline: true, // Default to true for new setups
+    autoReply: "Check Dm for Your Access. :)",
+    macros: [
+        { label: "⚡ Pricing", text: "Hey! Our plans start at $29/mo. Check trakn.pro/pricing 🚀" },
+        { label: "📞 Call", text: "Let's chat! Book a demo here: trakn.pro/demo 📅" },
+        { label: "👋 Welcome", text: "Welcome to the crew! Any questions? 👊" }
+    ]
+};
+
 export async function getSettings(): Promise<Settings> {
-    await ensureDataDir();
-    try {
-        const data = await fs.readFile(SETTINGS_FILE, "utf-8");
-        const json = JSON.parse(data);
-        return {
-            keyword: json.keyword || "PRO",
-            isSystemOnline: typeof json.isSystemOnline === "boolean" ? json.isSystemOnline : false,
-            autoReply: json.autoReply || "Check Dm for Your Access. :)",
-            macros: Array.isArray(json.macros) ? json.macros : [
-                { label: "⚡ Pricing", text: "Hey! Our plans start at $29/mo. Check trakn.pro/pricing 🚀" },
-                { label: "📞 Call", text: "Let's chat! Book a demo here: trakn.pro/demo 📅" },
-                { label: "👋 Welcome", text: "Welcome to the crew! Any questions? 👊" }
-            ]
-        };
-    } catch {
-        return {
-            keyword: "PRO",
-            isSystemOnline: false,
-            autoReply: "Check Dm for Your Access. :)",
-            macros: [
-                { label: "⚡ Pricing", text: "Hey! Our plans start at $29/mo. Check trakn.pro/pricing 🚀" },
-                { label: "📞 Call", text: "Let's chat! Book a demo here: trakn.pro/demo 📅" },
-                { label: "👋 Welcome", text: "Welcome to the crew! Any questions? 👊" }
-            ]
-        };
+    const client = await getSupabaseClient();
+    const { data, error } = await client
+        .from('settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+    if (error || !data) {
+        if (error && error.code !== 'PGRST116') {
+            console.error("[Settings] Error fetching from Supabase:", error);
+        }
+        // If not found, attempts to initialize with defaults (only works if table exists)
+        return DEFAULT_SETTINGS;
     }
+
+    return {
+        keyword: data.keyword || DEFAULT_SETTINGS.keyword,
+        isSystemOnline: typeof data.is_system_online === 'boolean' ? data.is_system_online : DEFAULT_SETTINGS.isSystemOnline,
+        autoReply: data.auto_reply || DEFAULT_SETTINGS.autoReply,
+        macros: Array.isArray(data.macros) ? data.macros : DEFAULT_SETTINGS.macros
+    };
 }
 
 export async function getKeyword(): Promise<string> {
@@ -59,24 +53,32 @@ export async function getKeyword(): Promise<string> {
 }
 
 export async function saveKeyword(keyword: string): Promise<void> {
-    const current = await getSettings();
-    await saveSettings({ ...current, keyword });
-}
-export async function saveMacros(macros: Macro[]): Promise<void> {
-    const current = await getSettings();
-    await saveSettings({ ...current, macros });
+    await saveSettings({ keyword });
 }
 
+export async function saveMacros(macros: Macro[]): Promise<void> {
+    await saveSettings({ macros });
+}
 
 export async function saveSettings(settings: Partial<Settings>): Promise<void> {
-    await ensureDataDir();
-    // Merge with existing
-    const current = await getSettings();
-    const newSettings = { ...current, ...settings };
-    await fs.writeFile(SETTINGS_FILE, JSON.stringify(newSettings, null, 2));
+    const client = await getSupabaseClient();
+
+    // Convert to DB format
+    const dbUpdate: any = {};
+    if (settings.keyword !== undefined) dbUpdate.keyword = settings.keyword;
+    if (settings.isSystemOnline !== undefined) dbUpdate.is_system_online = settings.isSystemOnline;
+    if (settings.autoReply !== undefined) dbUpdate.auto_reply = settings.autoReply;
+    if (settings.macros !== undefined) dbUpdate.macros = settings.macros;
+
+    const { error } = await client
+        .from('settings')
+        .upsert({ id: 1, ...dbUpdate }, { onConflict: 'id' });
+
+    if (error) {
+        console.error("[Settings] Error saving to Supabase:", error);
+    }
 }
 
 export async function toggleSystemStatus(isOnline: boolean): Promise<void> {
-    const current = await getSettings();
-    await saveSettings({ ...current, isSystemOnline: isOnline });
+    await saveSettings({ isSystemOnline: isOnline });
 }

@@ -1,3 +1,47 @@
-// This file exists to satisfy Next.js build-time module resolution.
-// The actual storage logic is in lib/storage.ts using a safe-lazy-init pattern.
-export const supabase = null as any;
+// lib/supabase.ts
+// Shared utility for build-safe Supabase initialization.
+
+async function getSupabaseClient() {
+    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' ||
+        (process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_SUPABASE_URL);
+
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    // Strict validation: URLs must be real, Keys must be JWT (start with eyJ)
+    const isValid = (u?: string, k?: string) => {
+        if (!u || !k || u === "" || k === "") return false;
+        if (isBuildPhase) return false;
+        if (!u.startsWith("https://")) return false;
+        if (!k.startsWith("eyJ") && !k.startsWith("sb_")) return false;
+        if (k.length < 20) return false;
+        return true;
+    };
+
+    if (!isValid(url, key)) {
+        // Return a silent mock for build-time static evaluation
+        return {
+            from: () => ({
+                select: () => ({
+                    order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
+                    eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) })
+                }),
+                upsert: () => Promise.resolve({ error: null }),
+                delete: () => ({ eq: () => ({ neq: () => Promise.resolve({ error: null }) }) }),
+                update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+                single: () => Promise.resolve({ data: null, error: null })
+            }),
+            auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) }
+        } as any;
+    }
+
+    try {
+        const { createClient } = await import('@supabase/supabase-js');
+        return createClient(url!, key!);
+    } catch (e) {
+        console.error("[Supabase] Failed to initialize client:", e);
+        return { from: () => ({ select: () => ({ order: () => Promise.resolve({ data: [], error: null }) }) }) } as any;
+    }
+}
+
+export { getSupabaseClient };

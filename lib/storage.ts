@@ -1,46 +1,9 @@
 import { Lead } from "@/components/MiniCRM";
 import { ActivityItem } from "@/components/LiveActivityFeed";
+import { getSupabaseClient } from "./supabase";
 
-// CAUTION: This function is strictly runtime-only. 
-// It will return a mock if called during build or if keys are invalid.
 async function getSafeClient() {
-    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build' ||
-        process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_SUPABASE_URL;
-
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    // Strict validation: URLs must be real, Keys must be JWT (start with eyJ)
-    const isValid = (u?: string, k?: string) => {
-        if (!u || !k || u === "" || k === "") return false;
-        if (isBuildPhase) return false;
-        if (!u.startsWith("https://")) return false;
-        if (!k.startsWith("eyJ") && !k.startsWith("sb_")) return false;
-        if (k.length < 20) return false;
-        return true;
-    };
-
-    if (!isValid(url, key)) {
-        console.warn("[Storage] Build-time or invalid keys detected. Returning safe mock.");
-        return {
-            from: () => ({
-                select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }),
-                upsert: () => Promise.resolve({ error: null }),
-                delete: () => ({ eq: () => ({ neq: () => Promise.resolve({ error: null }) }) }),
-                update: () => ({ eq: () => Promise.resolve({ error: null }) }),
-                single: () => Promise.resolve({ data: null, error: null })
-            })
-        } as any;
-    }
-
-    try {
-        // Double check for window to ensure we aren't accidentally running on client-side build
-        const { createClient } = await import('@supabase/supabase-js');
-        return createClient(url!, key!);
-    } catch (e) {
-        console.error("[Storage] Failed to initialize Supabase client:", e);
-        return { from: () => ({ select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }) } as any;
-    }
+    return getSupabaseClient();
 }
 
 // --- LEADS ---
