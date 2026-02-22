@@ -1,11 +1,11 @@
-import { supabase } from "./supabase";
+import { getSupabase } from "./supabase";
 import { Lead } from "@/components/MiniCRM";
 import { ActivityItem } from "@/components/LiveActivityFeed";
 
 // --- LEADS ---
 
 export async function getLeads(): Promise<Lead[]> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('leads')
         .select('*')
         .order('timestamp', { ascending: false });
@@ -38,7 +38,7 @@ export async function saveLead(lead: Lead): Promise<void> {
         console.warn("[Storage] Could not enrich lead profile:", e);
     }
 
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from('leads')
         .upsert(enriched, { onConflict: 'id' });
 
@@ -48,7 +48,7 @@ export async function saveLead(lead: Lead): Promise<void> {
 }
 
 export async function hasContactedUser(userId: string): Promise<boolean> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('leads')
         .select('id')
         .eq('id', userId)
@@ -61,7 +61,7 @@ export async function hasContactedUser(userId: string): Promise<boolean> {
 }
 
 export async function deleteLead(leadId: string): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from('leads')
         .delete()
         .eq('id', leadId);
@@ -72,7 +72,7 @@ export async function deleteLead(leadId: string): Promise<void> {
 }
 
 export async function purgeLeads(): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from('leads')
         .delete()
         .neq('id', '0'); // Hack to delete all if primary key is string
@@ -85,7 +85,7 @@ export async function purgeLeads(): Promise<void> {
 // --- ACTIVITY LOGS ---
 
 export async function getActivity(): Promise<ActivityItem[]> {
-    const { data, error } = await supabase
+    const { data, error } = await getSupabase()
         .from('activity')
         .select('*')
         .order('id', { ascending: false }) // rx-timestamp based ID or just created_at
@@ -99,7 +99,7 @@ export async function getActivity(): Promise<ActivityItem[]> {
 }
 
 export async function logActivity(item: ActivityItem): Promise<void> {
-    const { error } = await supabase
+    const { error } = await getSupabase()
         .from('activity')
         .upsert(item, { onConflict: 'id' });
 
@@ -113,7 +113,7 @@ export async function updateActivityStatus(
     status: "sent" | "failed",
     replyText?: string
 ): Promise<void> {
-    const { data: items, error: fetchError } = await supabase
+    const { data: items, error: fetchError } = await getSupabase()
         .from('activity')
         .select('*')
         .eq('commentId', commentId)
@@ -122,7 +122,7 @@ export async function updateActivityStatus(
     if (fetchError || !items || items.length === 0) return;
 
     const item = items[0];
-    const { error: updateError } = await supabase
+    const { error: updateError } = await getSupabase()
         .from('activity')
         .update({ status, replyText })
         .eq('id', item.id);
