@@ -56,7 +56,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
 
     // Helper to extract timestamp from ID
     const getTs = (id: string) => {
-        const match = id.match(/\d+$/);
+        const match = id.match(/\d+/);
         return match ? parseInt(match[0]) : 0;
     };
 
