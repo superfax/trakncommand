@@ -100,9 +100,9 @@ async function processWebhookEvent(body: any) {
 
                 console.log(`[Webhook] Receipt: ${username} said "${commentText}"`);
 
-                // Log initial receipt (Now uses mapped snake_case in storage.ts)
+                // Log initial receipt
                 await logActivity({
-                    id: `rx - ${Date.now()} `,
+                    id: `rx-${Date.now()}-${username}`,
                     handle: username,
                     comment: isDM ? `📩 (DM): ${commentText}` : commentText,
                     status: "pending",
@@ -161,9 +161,8 @@ async function processWebhookEvent(body: any) {
                     console.log(`Waiting ${delay}ms...`);
                     await wait(delay);
 
-                    // 🛠️ MACRO REPLACEMENT
                     const personalize = (text: string) => {
-                        return text.replace(/\[USERNAME\]/g, username || "there");
+                        return text.replace(/\[USERNAME\]/gi, username || "there");
                     };
 
                     const finalPublicReply = personalize(settings.autoReply);

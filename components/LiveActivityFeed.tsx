@@ -52,7 +52,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
 
     // 1. Consolidation Logic
     const consolidatedMap = new Map<string, ActivityItem & { _timestamp: number }>();
-    const selfHandles = ["traknpro", "isellbeatsapp"];
+    const selfHandles = ["traknpro"];
 
     // Helper to extract timestamp from ID
     const getTs = (id: string) => {
