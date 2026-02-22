@@ -33,10 +33,11 @@ async function processWebhookEvent(body: any) {
     try {
         const { getSettings, saveLead, hasContactedUser, logActivity, updateActivityStatus, sendPrivateReply, likeComment, wait } = await getLib();
         const settings = await getSettings();
+        console.log(`[Webhook] Settings Loaded: Online=${settings.isSystemOnline}, Keyword="${settings.keyword}"`);
 
         // Safety Check 1: Master Toggle
         if (!settings.isSystemOnline) {
-            console.log("⚠️ WEBHOOK IGNORED: System is OFFLINE.");
+            console.log("⚠️ WEBHOOK IGNORED: System is OFFLINE in Supabase Settings.");
             return;
         }
 
