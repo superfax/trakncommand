@@ -36,7 +36,7 @@ async function debugToken() {
         console.log("-----------------------------------");
 
         // 2. Try fetching pages one more time with full error logging
-        const pageRes = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${ACCESS_TOKEN}`);
+        const pageRes = await fetch(`https://graph.facebook.com/v25.0/me/accounts?access_token=${ACCESS_TOKEN}`);
         const pageData = await pageRes.json();
 
         console.log("\n📄 PAGES FOUND:");

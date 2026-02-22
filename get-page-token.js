@@ -12,8 +12,12 @@ async function getPageTokens() {
     }
 
     try {
-        const res = await fetch(`https://graph.facebook.com/v19.0/me/accounts?access_token=${ACCESS_TOKEN}`);
-        const data = await res.json();
+        const response = await axios.get(`https://graph.facebook.com/v25.0/me/accounts`, {
+            params: {
+                access_token: ACCESS_TOKEN
+            }
+        });
+        const data = response.data;
 
         if (data.error) {
             console.error("❌ API Error:", data.error.message);
