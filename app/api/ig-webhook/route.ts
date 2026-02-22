@@ -89,7 +89,7 @@ async function processWebhookEvent(body: any) {
                 console.log(`[Webhook] Processing interaction from ${username} (${isDM ? 'DM' : 'Comment'})`);
 
                 // 🔍 IMPROVED: Ignore messages from the business itself
-                const selfHandles = ["traknpro", "isellbeatsapp"];
+                const selfHandles = ["traknpro"];
                 const isSelf = selfHandles.includes(username.toLowerCase()) ||
                     commentText === settings.autoReply;
 
