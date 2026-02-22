@@ -88,10 +88,39 @@ export async function sendPrivateReply(
 
     // 2. STRATEGY A: Official Modern Private Reply (per Meta Docs 2024/2025)
     // Host: graph.facebook.com (Page Access Tokens stay here)
-    // Endpoint: IG_BIZ_ID/messages
+    // Endpoint: /me/messages (The most reliable Page-native endpoint)
     // Body: { recipient: { comment_id: ... }, message: { text: ... } }
-    if (commentId && dmReply && IG_BIZ_ID) {
-        console.log(`[IG] Trying Modern Private Reply via graph.facebook.com v25.0...`);
+    if (commentId && dmReply) {
+        console.log(`[IG] Trying Modern Private Reply via /me/messages v25.0...`);
+        try {
+            const res = await fetch(
+                `https://graph.facebook.com/v25.0/me/messages?access_token=${ACCESS_TOKEN}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        recipient: { comment_id: commentId },
+                        message: { text: dmReply }
+                    })
+                }
+            );
+            const data = await res.json();
+            if (!data.error && (data.id || data.success || data.message_id)) {
+                console.log("[IG] ✅ Modern Private Reply OK (/me)");
+                result.privateOk = true;
+            } else {
+                const err = data.error?.message || JSON.stringify(data);
+                privateError = `Modern(/me): ${err}`;
+                console.warn("[IG] Modern Private Reply (/me) failed:", err);
+            }
+        } catch (e: any) {
+            privateError = `Modern(/me) Exception: ${e.message}`;
+        }
+    }
+
+    // 2a. STRATEGY A2: Instagram Business Account Direct Endpoint
+    if (!result.privateOk && commentId && dmReply && IG_BIZ_ID) {
+        console.log(`[IG] Trying Modern Private Reply via ${IG_BIZ_ID}...`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v25.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
@@ -106,15 +135,14 @@ export async function sendPrivateReply(
             );
             const data = await res.json();
             if (!data.error && (data.id || data.success || data.message_id)) {
-                console.log("[IG] ✅ Modern Private Reply OK");
+                console.log("[IG] ✅ Modern Private Reply OK (IG_ID)");
                 result.privateOk = true;
             } else {
                 const err = data.error?.message || JSON.stringify(data);
-                privateError = `Modern: ${err}`;
-                console.warn("[IG] Modern Private Reply failed:", err);
+                privateError += ` | Modern(IG_ID): ${err}`;
             }
         } catch (e: any) {
-            privateError = `Modern Method Exception: ${e.message}`;
+            privateError += ` | Modern(IG_ID) Exception: ${e.message}`;
         }
     }
 
