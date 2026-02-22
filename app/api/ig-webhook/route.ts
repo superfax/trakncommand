@@ -118,21 +118,12 @@ async function processWebhookEvent(body: any) {
                 if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
                     console.log(`🎯 Keyword Match: "${triggerKeyword}" found in "${commentText}"`);
 
-                    /* 🔍 TEMP DISABLED FOR TESTING: Duplicate / Cooldown
+                    // 🔍 Duplicate / Cooldown Check
                     const alreadyContacted = await hasContactedUser(userId);
                     if (alreadyContacted) {
                         console.log(`⚠️ User ${username} already contacted. Skipping.`);
-                        await logActivity({
-                            id: `skip-${Date.now()}`,
-                            handle: username,
-                            comment: "Duplicate skipped",
-                            status: "failed",
-                            timestamp: new Date().toLocaleTimeString()
-                        });
                         continue;
                     }
-                    */
-                    console.log(`[DEBUG] Duplicate check bypassed for testing user: ${username}`);
 
                     console.log("Keyword Matched! Initiating workflow...");
 
