@@ -120,8 +120,10 @@ async function processWebhookEvent(body: any) {
 
                             console.log("Keyword Matched! Initiating workflow...");
 
-                            // Humanization 1: Like the comment immediately
-                            await likeComment(commentId);
+                            // Humanization 1: Like the comment immediately (Only for non-DMs)
+                            if (!isDM) {
+                                await likeComment(commentId);
+                            }
 
                             // Simulate AI Tagging
                             const potentialTags = ["VIP", "High Value", "Early Access", "Influencer"];
@@ -145,7 +147,8 @@ async function processWebhookEvent(body: any) {
                             await wait(delay);
 
                             // 3. Reply using the configured auto-reply message from settings
-                            const success = await sendPrivateReply(userId, settings.autoReply, commentId);
+                            // For DMs, we DO NOT pass the commentId to avoid Strategy 1 (public reply)
+                            const success = await sendPrivateReply(userId, settings.autoReply, isDM ? undefined : commentId);
 
                             if (success) {
                                 console.log("Reply Sent Successfully.");
