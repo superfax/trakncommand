@@ -9,7 +9,7 @@ export interface ActivityItem {
     id: string;
     handle: string;
     comment: string;
-    status: "sent" | "pending" | "failed";
+    status: "sent" | "pending" | "failed" | "partial";
     timestamp: string;
     postImage?: string;
     postCaption?: string;
@@ -29,10 +29,11 @@ interface LiveActivityFeedProps {
     macros?: Macro[];
 }
 
-type FilterStatus = "all" | "sent" | "pending" | "failed";
+type FilterStatus = "all" | "sent" | "pending" | "failed" | "partial";
 
 const STATUS_CONFIG = {
     sent: { icon: CheckCircle, color: "text-green-500", label: "REPLIED", bg: "bg-green-500/10", border: "border-green-500/20" },
+    partial: { icon: Zap, color: "text-amber-500", label: "PARTIAL", bg: "bg-amber-500/10", border: "border-amber-500/20" },
     pending: { icon: Clock, color: "text-brand-purple", label: "PROCESSING", bg: "bg-brand-purple/10", border: "border-brand-purple/20" },
     failed: { icon: AlertCircle, color: "text-red-500", label: "FAILED", bg: "bg-red-500/10", border: "border-red-500/20" },
 };
@@ -95,6 +96,7 @@ export default function LiveActivityFeed({ feed, onReply, macros = [] }: LiveAct
         sent: consolidatedFeed.filter((f) => f.status === "sent").length,
         pending: consolidatedFeed.filter((f) => f.status === "pending").length,
         failed: consolidatedFeed.filter((f) => f.status === "failed").length,
+        partial: consolidatedFeed.filter((f) => f.status === "partial").length,
     };
 
     const filtered = filter === "all" ? consolidatedFeed : consolidatedFeed.filter((f) => f.status === filter);

@@ -158,23 +158,36 @@ async function processWebhookEvent(body: any) {
                     await wait(delay);
 
                     // 3. Reply using separate comment and DM messages from settings
-                    const success = await sendPrivateReply(
+                    const result = await sendPrivateReply(
                         userId,
                         settings.autoReply,
                         settings.dmReply,
                         isDM ? undefined : commentId
                     );
 
-                    if (success) {
+                    if (result.success) {
                         console.log("Automation Sequence Successful.");
-                        // Standardize the feed text to show the workflow status
-                        const feedText = isDM
-                            ? `📩 DM Reply: "${settings.dmReply.slice(0, 30)}..."`
-                            : `💬 Comment: "${settings.autoReply}" | 📩 DM: "${settings.dmReply.slice(0, 20)}..."`;
 
-                        await updateActivityStatus(commentId, "sent", feedText);
+                        // Construct status label
+                        let statusText = "";
+                        if (isDM) {
+                            statusText = result.privateOk ? `📩 DM Sent: "${settings.dmReply.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText}`;
+                        } else {
+                            const cStatus = result.publicOk ? "💬 Comment ✅" : "💬 Comment ❌";
+                            const dStatus = result.privateOk ? "📩 DM ✅" : "📩 DM ❌";
+                            statusText = `${cStatus} | ${dStatus}`;
+
+                            // If DM failed, show the link we tried to send
+                            if (!result.privateOk) {
+                                statusText += ` (Err: ${result.errorText})`;
+                            } else {
+                                statusText += ` | DM: "${settings.dmReply.slice(0, 15)}..."`;
+                            }
+                        }
+
+                        await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
                     } else {
-                        await updateActivityStatus(commentId, "failed", "Reply sequence failed (Check logs)");
+                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"}`);
                     }
                 }
             }

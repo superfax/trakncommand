@@ -40,7 +40,7 @@ export async function saveLead(lead: Lead): Promise<void> {
 
         if (token && lead.id && isNumericId) {
             const res = await fetch(
-                `https://graph.facebook.com/v19.0/${lead.id}?fields=name,profile_pic,username&access_token=${token}`
+                `https://graph.facebook.com/v25.0/${lead.id}?fields=name,profile_pic,username&access_token=${token}`
             );
             const data = await res.json();
             if (!data.error) {
@@ -194,7 +194,7 @@ export async function logActivity(item: ActivityItem): Promise<void> {
 
 export async function updateActivityStatus(
     commentId: string,
-    status: "sent" | "failed",
+    status: "sent" | "failed" | "partial",
     replyText?: string
 ): Promise<void> {
     try {
