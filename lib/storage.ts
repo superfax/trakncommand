@@ -21,7 +21,7 @@ export async function getLeads(): Promise<Lead[]> {
     }
 
     // Map back to camelCase
-    return (data || []).map(row => ({
+    return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         name: row.name,
@@ -128,7 +128,7 @@ export async function getActivities(): Promise<ActivityItem[]> {
     }
 
     // Map back to camelCase
-    return (data || []).map(row => ({
+    return (data || []).map((row: any) => ({
         id: row.id,
         handle: row.handle,
         comment: row.comment,
