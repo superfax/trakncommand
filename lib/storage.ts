@@ -4,14 +4,24 @@ import { ActivityItem } from "@/components/LiveActivityFeed";
 // CAUTION: This function is strictly runtime-only. 
 // It will return a mock if called during build or if keys are invalid.
 async function getSafeClient() {
+    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+    const isStaticGeneration = process.env.NEXT_PHASE === 'phase-action-build'; // Extra safety
+
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    // Check for "falsy" or "placeholder" or "undefined" strings
-    const isValid = (val?: string) => val && val !== "" && val !== "undefined" && val !== "null" && val.length > 10;
+    // Strict validation: URLs must be real, Keys must be JWT (start with eyJ)
+    const isValid = (u?: string, k?: string) => {
+        if (!u || !k) return false;
+        if (isBuildPhase || isStaticGeneration) return false;
+        if (!u.startsWith("https://")) return false;
+        if (!k.startsWith("eyJ") && !k.startsWith("sb_")) return false; // Allowed sb_ for testing if needed but usually eyJ
+        if (k.length < 20) return false;
+        return true;
+    };
 
-    if (!isValid(url) || !isValid(key)) {
-        console.warn("[Storage] Missing or invalid Supabase keys. Using build-safe mock.");
+    if (!isValid(url, key)) {
+        // Return a silent mock for build-time static evaluation
         return {
             from: () => ({
                 select: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }),
