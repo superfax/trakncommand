@@ -43,121 +43,132 @@ async function processWebhookEvent(body: any) {
         const triggerKeyword = settings.keyword;
 
         for (const entry of body.entry) {
+            const interactions: any[] = [];
+
+            // 1. Collect DMs (Direct Messaging)
+            if (entry.messaging) {
+                for (const msg of entry.messaging) {
+                    if (msg.message && msg.message.text) {
+                        interactions.push({
+                            userId: msg.sender?.id,
+                            username: `User_${msg.sender?.id.slice(-4)}`,
+                            commentText: msg.message.text,
+                            commentId: msg.message.mid,
+                            isDM: true,
+                            media: {}
+                        });
+                    }
+                }
+            }
+
+            // 2. Collect Comments (Changes)
             if (entry.changes) {
                 for (const change of entry.changes) {
+                    const value = change.value;
+                    if (!value) continue;
+
                     const isInstagramComment = change.field === "comments";
-                    const isFacebookComment = change.field === "feed" && change.value.item === "comment";
-                    const isInstagramMessage = entry.messaging && entry.messaging.length > 0;
+                    const isFacebookComment = change.field === "feed" && value.item === "comment";
 
-                    if (isInstagramComment || isFacebookComment || isInstagramMessage) {
-                        let userId = "";
-                        let username = "";
-                        let commentText = "";
-                        let commentId = "";
-                        let parentId = "";
-                        let media = { media_url: undefined, caption: undefined };
-                        let isDM = false;
-
-                        if (isInstagramMessage) {
-                            const msg = entry.messaging[0];
-                            userId = msg.sender?.id;
-                            username = `User_${userId.slice(-4)}`; // DMs don't always provide username in the body
-                            commentText = msg.message?.text || "";
-                            commentId = msg.message?.mid;
-                            isDM = true;
-                        } else {
-                            const value = change.value;
-                            commentText = change.field === "feed" ? value.message : (value.text || "");
-                            const from = value.from || {};
-                            userId = from.id;
-                            username = from.name || from.username;
-                            media = value.media || {};
-                            commentId = change.field === "feed" ? value.comment_id : value.id;
-                            parentId = value.parent_id;
-                        }
-
-                        // 🔍 IMPROVED: Ignore messages from the business itself
-                        const selfHandles = ["traknpro", "isellbeatsapp"];
-                        const isSelf = selfHandles.includes(username.toLowerCase()) ||
-                            commentText === settings.autoReply;
-
-                        if (isSelf) {
-                            console.log(`⏭️ Ignoring self-interaction from ${username}`);
-                            continue;
-                        }
-
-                        console.log(`Received ${isDM ? 'DM' : 'comment'} from ${username}: ${commentText}`);
-
-                        // Log initial receipt
-                        await logActivity({
-                            id: `rx-${Date.now()}`,
-                            handle: username,
-                            comment: isDM ? `📩 (DM): ${commentText}` : commentText,
-                            status: "pending",
-                            timestamp: new Date().toLocaleTimeString(),
-                            postImage: media.media_url,
-                            postCaption: media.caption,
-                            commentId: parentId || commentId,
-                            userId,
+                    if (isInstagramComment || isFacebookComment) {
+                        const from = value.from || {};
+                        interactions.push({
+                            userId: from.id,
+                            username: from.name || from.username || `User_${from.id?.slice(-4)}`,
+                            commentText: change.field === "feed" ? value.message : (value.text || ""),
+                            commentId: change.field === "feed" ? value.comment_id : value.id,
+                            parentId: value.parent_id,
+                            media: value.media || {},
+                            isDM: false
                         });
+                    }
+                }
+            }
 
-                        // Keyword Trigger Check
-                        if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
+            // 3. Process each interaction
+            for (const item of interactions) {
+                const { userId, username, commentText, commentId, parentId, media, isDM } = item;
 
-                            // Safety Check 2: Duplicate / Cooldown
-                            const alreadyContacted = await hasContactedUser(userId);
-                            if (alreadyContacted) {
-                                console.log(`⚠️ User ${username} already contacted. Skipping.`);
-                                await logActivity({
-                                    id: `skip-${Date.now()}`,
-                                    handle: username,
-                                    comment: "Duplicate skipped",
-                                    status: "failed",
-                                    timestamp: new Date().toLocaleTimeString()
-                                });
-                                continue;
-                            }
+                // 🔍 IMPROVED: Ignore messages from the business itself
+                const selfHandles = ["traknpro", "isellbeatsapp"];
+                const isSelf = selfHandles.includes(username.toLowerCase()) ||
+                    commentText === settings.autoReply;
 
-                            console.log("Keyword Matched! Initiating workflow...");
+                if (isSelf) {
+                    console.log(`⏭️ Ignoring self-interaction from ${username}`);
+                    continue;
+                }
 
-                            // Humanization 1: Like the comment immediately (Only for non-DMs)
-                            if (!isDM) {
-                                await likeComment(commentId);
-                            }
+                console.log(`Received ${isDM ? 'DM' : 'comment'} from ${username}: ${commentText}`);
 
-                            // Simulate AI Tagging
-                            const potentialTags = ["VIP", "High Value", "Early Access", "Influencer"];
-                            const randomTag = potentialTags[Math.floor(Math.random() * potentialTags.length)];
+                // Log initial receipt
+                await logActivity({
+                    id: `rx-${Date.now()}`,
+                    handle: username,
+                    comment: isDM ? `📩 (DM): ${commentText}` : commentText,
+                    status: "pending",
+                    timestamp: new Date().toLocaleTimeString(),
+                    postImage: media.media_url,
+                    postCaption: media.caption,
+                    commentId: parentId || commentId,
+                    userId,
+                });
 
-                            // 1. Save Lead (Mark as contacted)
-                            await saveLead({
-                                id: userId,
-                                handle: username,
-                                timestamp: new Date().toISOString(),
-                                status: "new",
-                                tags: [randomTag] // New: AI Tagging
-                            });
+                // Keyword Trigger Check
+                if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
 
-                            // 2. Human Delay (5-45s)
-                            const minDelay = 5000;
-                            const maxDelay = 45000;
-                            const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+                    // Safety Check 2: Duplicate / Cooldown
+                    const alreadyContacted = await hasContactedUser(userId);
+                    if (alreadyContacted) {
+                        console.log(`⚠️ User ${username} already contacted. Skipping.`);
+                        await logActivity({
+                            id: `skip-${Date.now()}`,
+                            handle: username,
+                            comment: "Duplicate skipped",
+                            status: "failed",
+                            timestamp: new Date().toLocaleTimeString()
+                        });
+                        continue;
+                    }
 
-                            console.log(`Waiting ${delay}ms...`);
-                            await wait(delay);
+                    console.log("Keyword Matched! Initiating workflow...");
 
-                            // 3. Reply using the configured auto-reply message from settings
-                            // For DMs, we DO NOT pass the commentId to avoid Strategy 1 (public reply)
-                            const success = await sendPrivateReply(userId, settings.autoReply, isDM ? undefined : commentId);
+                    // Humanization 1: Like the comment immediately (Only for non-DMs)
+                    if (!isDM) {
+                        await likeComment(commentId);
+                    }
 
-                            if (success) {
-                                console.log("Reply Sent Successfully.");
-                                // Update original "pending" activity item with reply text
-                                await updateActivityStatus(commentId, "sent", settings.autoReply);
-                            } else {
-                                await updateActivityStatus(commentId, "failed", "Reply failed to send");
-                            }
-                        }
+                    // Simulate AI Tagging
+                    const potentialTags = ["VIP", "High Value", "Early Access", "Influencer"];
+                    const randomTag = potentialTags[Math.floor(Math.random() * potentialTags.length)];
+
+                    // 1. Save Lead (Mark as contacted)
+                    await saveLead({
+                        id: userId,
+                        handle: username,
+                        timestamp: new Date().toISOString(),
+                        status: "new",
+                        tags: [randomTag] // New: AI Tagging
+                    });
+
+                    // 2. Human Delay (5-45s)
+                    const minDelay = 5000;
+                    const maxDelay = 45000;
+                    const delay = Math.floor(Math.random() * (maxDelay - minDelay + 1) + minDelay);
+
+                    console.log(`Waiting ${delay}ms...`);
+                    await wait(delay);
+
+                    // 3. Reply using the configured auto-reply message from settings
+                    // For DMs, we DO NOT pass the commentId to avoid Strategy 1 (public reply)
+                    const success = await sendPrivateReply(userId, settings.autoReply, isDM ? undefined : commentId);
+
+                    if (success) {
+                        console.log("Reply Sent Successfully.");
+                        // Update original "pending" activity item with reply text
+                        await updateActivityStatus(commentId, "sent", settings.autoReply);
+                    } else {
+                        await updateActivityStatus(commentId, "failed", "Reply failed to send");
                     }
                 }
             }
