@@ -86,14 +86,15 @@ export async function sendPrivateReply(
         }
     }
 
-    // 2. STRATEGY A: Official Modern Private Reply (per Meta Docs)
+    // 2. STRATEGY A: Official Modern Private Reply (per Meta Docs 2024/2025)
+    // Host: graph.instagram.com (Specialized for Messaging)
     // Endpoint: IG_BIZ_ID/messages
     // Body: { recipient: { comment_id: ... }, message: { text: ... } }
     if (commentId && dmReply && IG_BIZ_ID) {
-        console.log(`[IG] Trying Modern Private Reply via ${IG_BIZ_ID}...`);
+        console.log(`[IG] Trying Modern Private Reply via graph.instagram.com...`);
         try {
             const res = await fetch(
-                `https://graph.facebook.com/v24.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
+                `https://graph.instagram.com/v25.0/${IG_BIZ_ID}/messages?access_token=${ACCESS_TOKEN}`,
                 {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
