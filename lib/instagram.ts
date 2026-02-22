@@ -42,7 +42,8 @@ export async function sendPrivateReply(
         return false;
     }
 
-    let success = false;
+    let publicSuccess = false;
+    let privateSuccess = false;
 
     // Strategy 1: Public comment reply
     if (commentId && commentReply) {
@@ -59,7 +60,7 @@ export async function sendPrivateReply(
             const data = await res.json();
             if (!data.error && (data.id || data.success)) {
                 console.log("[IG] ✅ Public comment reply sent!");
-                success = true;
+                publicSuccess = true;
             } else {
                 console.warn("[IG] Public reply failed:", JSON.stringify(data.error || data));
             }
@@ -68,9 +69,34 @@ export async function sendPrivateReply(
         }
     }
 
-    // Strategy 2: Direct DM via IGSID (requires Advanced Access)
-    if (recipientIgsid && dmReply) {
-        console.log(`[IG] Attempting DM to IGSID ${recipientIgsid}...`);
+    // Strategy 2: Official Private Reply (Canonically linked to a comment)
+    // This is the strongest strategy for Comment -> DM flows
+    if (commentId && dmReply) {
+        console.log(`[IG] Attempting Official Private Reply for comment ${commentId}...`);
+        try {
+            const res = await fetch(
+                `https://graph.facebook.com/v19.0/${commentId}/private_replies?access_token=${ACCESS_TOKEN}`,
+                {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: dmReply })
+                }
+            );
+            const data = await res.json();
+            if (!data.error && (data.id || data.success)) {
+                console.log("[IG] ✅ Private Reply (DM) sent via official API!");
+                privateSuccess = true;
+            } else {
+                console.warn("[IG] Official Private Reply failed:", JSON.stringify(data.error || data));
+            }
+        } catch (e) {
+            console.error("[IG] Official Private Reply threw:", e);
+        }
+    }
+
+    // Strategy 3: Direct DM via IGSID (Fallback or for DM-to-DM flows)
+    if (!privateSuccess && recipientIgsid && dmReply) {
+        console.log(`[IG] Falling back to Direct DM for IGSID ${recipientIgsid}...`);
         try {
             const res = await fetch(
                 `https://graph.facebook.com/v19.0/${IG_BUSINESS_ACCOUNT_ID}/messages?access_token=${ACCESS_TOKEN}`,
@@ -85,22 +111,23 @@ export async function sendPrivateReply(
             );
             const data = await res.json();
             if (!data.error) {
-                console.log("[IG] ✅ DM sent via IGSID:", data.message_id);
-                success = true;
+                console.log("[IG] ✅ DM sent via general Messaging API:", data.message_id);
+                privateSuccess = true;
             } else {
-                // If this fails, we don't mark the whole thing as failure if the comment worked, 
-                // but we log it for the user to see in Dash.
-                console.error("[IG] DM failed (needs Advanced Access):", JSON.stringify(data.error));
+                console.error("[IG] Direct DM failed:", JSON.stringify(data.error));
             }
         } catch (e) {
-            console.error("[IG] DM threw:", e);
+            console.error("[IG] Direct DM threw:", e);
         }
     }
 
-    if (!success) {
+    if (!publicSuccess && !privateSuccess) {
         console.error("[IG] ❌ All reply strategies failed");
+        return false;
     }
-    return success;
+
+    // We return true if at least ONE succeeded, but we should log the partial failure if any
+    return true;
 }
 
 /**

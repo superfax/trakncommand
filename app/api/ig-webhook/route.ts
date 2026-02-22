@@ -167,9 +167,14 @@ async function processWebhookEvent(body: any) {
 
                     if (success) {
                         console.log("Automation Sequence Successful.");
-                        await updateActivityStatus(commentId, "sent", settings.dmReply); // Log the DM text in Dash
+                        // Standardize the feed text to show the workflow status
+                        const feedText = isDM
+                            ? `📩 DM Reply: "${settings.dmReply.slice(0, 30)}..."`
+                            : `💬 Comment: "${settings.autoReply}" | 📩 DM: "${settings.dmReply.slice(0, 20)}..."`;
+
+                        await updateActivityStatus(commentId, "sent", feedText);
                     } else {
-                        await updateActivityStatus(commentId, "failed", "Reply sequence failed");
+                        await updateActivityStatus(commentId, "failed", "Reply sequence failed (Check logs)");
                     }
                 }
             }

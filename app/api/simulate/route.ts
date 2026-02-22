@@ -64,10 +64,11 @@ export async function POST(req: NextRequest) {
 
                 const success = await sendPrivateReply(fakeUserId, settings.autoReply, settings.dmReply);
 
+                const feedText = `💬 (Sim) Comment Reply | 📩 (Sim) DM Sent`;
                 await logActivity({
                     id: `${success ? "sent" : "fail"}-${Date.now()}`,
                     handle,
-                    comment: success ? "DM Sent via simulation" : "Simulated DM failed (no token — expected)",
+                    comment: success ? feedText : "Simulated DM failed (no token — expected)",
                     status: success ? "sent" : "failed",
                     timestamp: new Date().toLocaleTimeString(),
                 });
