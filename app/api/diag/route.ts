@@ -12,9 +12,16 @@ export async function GET(req: NextRequest) {
         },
         supabase: {
             connected: false,
-            url_present: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
-            key_present: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-            key_preview: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 10) + "...",
+            url: {
+                present: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
+                value: process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 15) + "..."
+            },
+            key: {
+                present: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+                prefix_match: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.startsWith("eyJ")
+                    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.startsWith("sb_"),
+                value_preview: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.slice(0, 5) + "..."
+            },
             error: null as any
         },
         meta: {
@@ -26,14 +33,20 @@ export async function GET(req: NextRequest) {
 
     try {
         const client = await getSupabaseClient();
-        const { data, error } = await client.from('settings').select('count').limit(1);
-        if (error) {
-            status.supabase.error = error;
+        // The mock will now return a promise that resolves to {data: null} instead of crashing
+        const result = await client.from('settings').select('count').limit(1);
+
+        if (!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+            status.supabase.error = "MISSING_ENVIRONMENT_VARIABLE: NEXT_PUBLIC_SUPABASE_ANON_KEY";
+        } else if (result.error) {
+            status.supabase.error = result.error;
+        } else if (result.data === null && !status.supabase.key.present) {
+            status.supabase.error = "MOCK_CLIENT_ACTIVE: Real connection failed.";
         } else {
             status.supabase.connected = true;
         }
     } catch (e: any) {
-        status.supabase.error = e.message || e;
+        status.supabase.error = `CATCH_ERROR: ${e.message || e}`;
     }
 
     return NextResponse.json(status);

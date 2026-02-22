@@ -19,20 +19,32 @@ async function getSupabaseClient() {
     };
 
     if (!isValid(url, key)) {
-        // Return a silent mock for build-time static evaluation
-        return {
-            from: () => ({
-                select: () => ({
-                    order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }),
-                    eq: () => ({ single: () => Promise.resolve({ data: null, error: null }) })
-                }),
-                upsert: () => Promise.resolve({ error: null }),
-                delete: () => ({ eq: () => ({ neq: () => Promise.resolve({ error: null }) }) }),
-                update: () => ({ eq: () => Promise.resolve({ error: null }) }),
-                single: () => Promise.resolve({ data: null, error: null })
-            }),
-            auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) }
-        } as any;
+        console.warn(`[Supabase] Invalid Credentials or Build Phase. URL=${!!url}, Key=${!!key}, Build=${isBuildPhase}`);
+
+        // Return a robust mock Proxy to prevent "is not a function" crashes
+        const createMock: any = () => {
+            const chain = () => {
+                const proxy: any = new Proxy(() => { }, {
+                    get: (target, prop) => {
+                        if (prop === 'then') return undefined; // Not a promise until called
+                        return proxy;
+                    },
+                    apply: () => {
+                        // When called, return a promise or the proxy itself
+                        return Promise.resolve({ data: null, error: null, count: 0 });
+                    }
+                });
+                return proxy;
+            };
+
+            return {
+                from: chain,
+                auth: { getUser: () => Promise.resolve({ data: { user: null }, error: null }) },
+                rpc: chain
+            } as any;
+        };
+
+        return createMock();
     }
 
     try {
