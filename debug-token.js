@@ -7,7 +7,7 @@ const APP_SECRET = process.env.FB_APP_SECRET;
 
 
 async function debugToken() {
-    console.log("🚀 Deep-Scanning Token Scopes (v22.0)...");
+    console.log("🚀 Deep-Scanning Token Scopes (v24.0)...");
 
     if (!ACCESS_TOKEN || !APP_ID || !APP_SECRET) {
         console.error("❌ Missing .env variables: FB_ACCESS_TOKEN, FB_APP_ID, or FB_APP_SECRET");
@@ -18,7 +18,7 @@ async function debugToken() {
         // 1. Official Token Inspection (Requires App Secret)
         const appToken = `${APP_ID}|${APP_SECRET}`;
         const debugRes = await fetch(
-            `https://graph.facebook.com/v22.0/debug_token?input_token=${ACCESS_TOKEN}&access_token=${appToken}`
+            `https://graph.facebook.com/v24.0/debug_token?input_token=${ACCESS_TOKEN}&access_token=${appToken}`
         );
         const debugData = await debugRes.json();
 
@@ -54,7 +54,7 @@ async function debugToken() {
         }
 
         // 2. Fetch User Identity
-        const meRes = await fetch(`https://graph.facebook.com/v22.0/me?fields=id,name&access_token=${ACCESS_TOKEN}`);
+        const meRes = await fetch(`https://graph.facebook.com/v24.0/me?fields=id,name&access_token=${ACCESS_TOKEN}`);
         const meData = await meRes.json();
         console.log("\n👤 IDENTITY:");
         console.log(`- Name: ${meData.name}`);

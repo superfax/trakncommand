@@ -12,7 +12,7 @@ async function getPageTokens() {
     }
 
     try {
-        const response = await axios.get(`https://graph.facebook.com/v22.0/me/accounts`, {
+        const response = await axios.get(`https://graph.facebook.com/v24.0/me/accounts`, {
             params: {
                 access_token: ACCESS_TOKEN
             }
