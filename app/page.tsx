@@ -102,6 +102,7 @@ export default function Home() {
 
   // Derive real metrics from feed
   const dmsSent = (feed as any[]).filter((f) => f.status === "sent").length;
+  const newLeadsCount = (leads as any[]).filter((l) => l.status === "new").length;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -110,6 +111,7 @@ export default function Home() {
         isSystemOnline={isSystemOnline}
         activePath={activeTab}
         onPathChange={setActiveTab}
+        newLeadsCount={newLeadsCount}
       />
 
       {/* Main Content Area */}

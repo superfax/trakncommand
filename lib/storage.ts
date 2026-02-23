@@ -114,6 +114,18 @@ export async function deleteLead(id: string): Promise<void> {
     }
 }
 
+export async function updateLeadStatus(id: string, status: string): Promise<void> {
+    const client = await getSafeClient();
+    const { error } = await client
+        .from('leads')
+        .update({ status })
+        .eq('id', id);
+
+    if (error) {
+        console.error("[Supabase] Error updating lead status:", error);
+    }
+}
+
 export async function purgeLeads(): Promise<void> {
     const client = await getSafeClient();
     const { error } = await client

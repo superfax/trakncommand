@@ -8,7 +8,7 @@ export interface Lead {
     id: string;
     handle: string;
     timestamp: string;
-    status: "new" | "contacted";
+    status: "new" | "contacted" | "converted";
     tags?: string[];
     profilePic?: string;
     name?: string;
@@ -34,6 +34,36 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
     const [isAdding, setIsAdding] = useState(false);
     const [manualInput, setManualInput] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [updatingStage, setUpdatingStage] = useState<string | null>(null);
+
+    const STAGE_CYCLE: Record<string, "new" | "contacted" | "converted"> = {
+        new: "contacted",
+        contacted: "converted",
+        converted: "new",
+    };
+
+    const STAGE_LABELS: Record<string, { label: string; color: string }> = {
+        new: { label: "New", color: "text-brand-purple bg-brand-purple/10" },
+        contacted: { label: "Contacted", color: "text-blue-400 bg-blue-400/10" },
+        converted: { label: "Converted", color: "text-green-400 bg-green-400/10" },
+    };
+
+    const handleStageUpdate = async (lead: Lead) => {
+        const nextStatus = STAGE_CYCLE[lead.status] || "new";
+        setUpdatingStage(lead.id);
+        try {
+            await fetch("/api/leads", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id: lead.id, status: nextStatus }),
+            });
+            if (onRemove) onRemove(); // re-fetch leads
+        } catch (e) {
+            console.error("Failed to update stage:", e);
+        } finally {
+            setUpdatingStage(null);
+        }
+    };
 
     const handleRemoveLead = async (id: string, handle: string) => {
         if (!window.confirm(`Remove @${handle} from leads?`)) return;
@@ -234,12 +264,17 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                                     )}
                                     {!isMinimal && (
                                         <td>
-                                            <span className={cn(
-                                                "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px]",
-                                                lead.status === 'new' ? "text-brand-purple bg-brand-purple/10" : "text-gray-500 bg-white/5"
-                                            )}>
-                                                {lead.status}
-                                            </span>
+                                            <button
+                                                onClick={() => handleStageUpdate(lead)}
+                                                disabled={updatingStage === lead.id}
+                                                className={cn(
+                                                    "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px] transition-all hover:opacity-70",
+                                                    STAGE_LABELS[lead.status]?.color
+                                                )}
+                                                title="Click to advance stage"
+                                            >
+                                                {updatingStage === lead.id ? "..." : STAGE_LABELS[lead.status]?.label}
+                                            </button>
                                         </td>
                                     )}
                                     {!isMinimal && (

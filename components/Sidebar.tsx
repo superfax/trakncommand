@@ -7,9 +7,10 @@ interface SidebarProps {
     isSystemOnline: boolean;
     activePath?: string;
     onPathChange?: (path: string) => void;
+    newLeadsCount?: number;
 }
 
-export default function Sidebar({ isSystemOnline, activePath = "dashboard", onPathChange }: SidebarProps) {
+export default function Sidebar({ isSystemOnline, activePath = "dashboard", onPathChange, newLeadsCount = 0 }: SidebarProps) {
     const navItems = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
         { id: "contacts", label: "Contacts", icon: Users },
@@ -35,12 +36,18 @@ export default function Sidebar({ isSystemOnline, activePath = "dashboard", onPa
                         key={item.id}
                         onClick={() => onPathChange?.(item.id)}
                         className={cn(
-                            "sidebar-item w-full",
+                            "sidebar-item w-full relative",
                             activePath === item.id && "sidebar-item-active"
                         )}
                     >
                         <item.icon className="w-4 h-4" />
                         <span className="text-sm font-medium">{item.label}</span>
+                        {item.id === "contacts" && newLeadsCount > 0 && (
+                            <span className="ml-auto flex items-center gap-1">
+                                <span className="w-2 h-2 rounded-full bg-brand-purple animate-pulse" />
+                                <span className="text-[9px] font-bold text-brand-purple">{newLeadsCount}</span>
+                            </span>
+                        )}
                     </button>
                 ))}
             </nav>

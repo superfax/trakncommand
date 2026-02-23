@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
-import { saveLead, deleteLead } from "@/lib/storage";
+import { saveLead, deleteLead, updateLeadStatus } from "@/lib/storage";
 
 export async function POST(req: NextRequest) {
     try {
@@ -46,5 +46,22 @@ export async function DELETE(req: NextRequest) {
     } catch (error) {
         console.error("[Leads DELETE] Error:", error);
         return NextResponse.json({ error: "Failed to delete lead(s)" }, { status: 500 });
+    }
+}
+
+export async function PATCH(req: NextRequest) {
+    try {
+        const body = await req.json();
+        const { id, status } = body;
+
+        if (!id || !status) {
+            return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+        }
+
+        await updateLeadStatus(id, status);
+        return NextResponse.json({ success: true });
+    } catch (error) {
+        console.error("[Leads PATCH] Error:", error);
+        return NextResponse.json({ error: "Failed to update lead" }, { status: 500 });
     }
 }
