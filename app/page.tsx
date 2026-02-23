@@ -24,6 +24,7 @@ export default function Home() {
   const [feed, setFeed] = useState([]);
   const [isFiring, setIsFiring] = useState(false);
   const [fireMsg, setFireMsg] = useState<string | null>(null);
+  const [keywordMode, setKeywordMode] = useState<"single" | "multi">("single");
 
   const fetchDashboardData = () => {
     fetch("/api/dashboard")
@@ -42,6 +43,7 @@ export default function Home() {
       .then((data) => {
         setIsSystemOnline(data.isSystemOnline);
         if (data.macros) setMacros(data.macros);
+        if (data.keywordMode) setKeywordMode(data.keywordMode);
       });
 
     // 2. Get Dashboard Data (Polling every 3s)
@@ -172,10 +174,10 @@ export default function Home() {
             <div className="space-y-8 animate-in fade-in duration-500">
               {/* Top Metric Row */}
               <div className="grid grid-cols-4 gap-6">
-                <div className="glass-panel p-6 flex flex-col justify-between min-h-[120px]">
+                <div className="glass-panel p-6 flex flex-col justify-between min-h-[110px]">
                   <span className="text-label">System State</span>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className={`text-2xl font-display ${isSystemOnline ? 'text-green-500' : 'text-red-500'}`}>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className={`text-xl font-display ${isSystemOnline ? 'text-green-500' : 'text-red-500'}`}>
                       {isSystemOnline ? 'ONLINE' : 'OFFLINE'}
                     </span>
                     <MasterToggle isOn={isSystemOnline} onToggle={handleToggle} />
@@ -334,9 +336,33 @@ export default function Home() {
                     Automatically triggers a DM response whenever a user comments with your designated keyword.
                   </p>
                   <div className="mt-auto pt-6 border-t border-white/5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono uppercase text-gray-500">Operation Mode</span>
+                      <div className="flex items-center gap-1 bg-black/30 rounded-[4px] p-0.5 border border-white/5">
+                        {(["single", "multi"] as const).map((m) => (
+                          <button
+                            key={m}
+                            onClick={async () => {
+                              setKeywordMode(m);
+                              await fetch("/api/settings", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ keywordMode: m })
+                              });
+                            }}
+                            className={cn(
+                              "text-[8px] font-bold uppercase tracking-widest px-2 py-1 rounded-[3px] transition-all",
+                              keywordMode === m ? "bg-brand-purple text-white shadow-lg" : "text-gray-500 hover:text-white"
+                            )}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="flex items-center justify-between text-[10px] font-mono uppercase">
                       <span className="text-gray-500">Target Keyword</span>
-                      <span className="text-brand-purple font-bold tracking-widest">{macros.length > 0 ? "ESTABLISHED" : "NOT SET"}</span>
+                      <span className="text-brand-purple font-bold tracking-widest">{keywordMode === "multi" ? "MULTI" : "ESTABLISHED"}</span>
                     </div>
                     <button
                       onClick={() => setActiveTab("settings")}

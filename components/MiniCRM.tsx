@@ -35,6 +35,8 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
     const [manualInput, setManualInput] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [updatingStage, setUpdatingStage] = useState<string | null>(null);
+    const [sortBy, setSortBy] = useState<"timestamp" | "handle" | "status">("timestamp");
+    const [filterStatus, setFilterStatus] = useState<"all" | "new" | "contacted" | "converted">("all");
 
     const STAGE_CYCLE: Record<string, "new" | "contacted" | "converted"> = {
         contacted: "converted",
@@ -123,10 +125,26 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
         }
     };
 
-    const filteredLeads = leads.filter(lead =>
-        lead.handle.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        lead.name?.toLowerCase().includes(searchQuery.toLowerCase())
-    );
+    const filteredLeads = leads
+        .filter(lead => {
+            const matchesSearch = lead.handle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                lead.name?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesFilter = filterStatus === "all" || lead.status === filterStatus;
+            return matchesSearch && matchesFilter;
+        })
+        .sort((a, b) => {
+            if (sortBy === "timestamp") {
+                return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+            }
+            if (sortBy === "handle") {
+                return a.handle.localeCompare(b.handle);
+            }
+            if (sortBy === "status") {
+                const order = { new: 0, contacted: 1, converted: 2 };
+                return order[a.status] - order[b.status];
+            }
+            return 0;
+        });
 
     return (
         <div className="editorial-panel flex flex-col min-h-[500px] overflow-hidden">
@@ -159,9 +177,25 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                         >
                             <Trash2 className="w-4 h-4" />
                         </button>
-                        <button className="p-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-[6px] border border-white/5">
-                            <Filter className="w-4 h-4" />
-                        </button>
+                        <select
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value as any)}
+                            className="bg-black/60 border border-white/10 rounded-[6px] px-2 py-1.5 text-[10px] font-mono text-gray-400 focus:outline-none focus:border-brand-purple/50 appearance-none cursor-pointer hover:text-white transition-all uppercase tracking-widest"
+                        >
+                            <option value="timestamp">Newest</option>
+                            <option value="handle">A-Z</option>
+                            <option value="status">Status</option>
+                        </select>
+                        <select
+                            value={filterStatus}
+                            onChange={(e) => setFilterStatus(e.target.value as any)}
+                            className="bg-black/60 border border-white/10 rounded-[6px] px-2 py-1.5 text-[10px] font-mono text-gray-400 focus:outline-none focus:border-brand-purple/50 appearance-none cursor-pointer hover:text-white transition-all uppercase tracking-widest"
+                        >
+                            <option value="all">All</option>
+                            <option value="new">New</option>
+                            <option value="contacted">Contacted</option>
+                            <option value="converted">Converted</option>
+                        </select>
                         <button
                             onClick={() => setIsAdding(true)}
                             className="bg-brand-purple hover:bg-brand-purple-hover text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[6px] shadow-lg shadow-brand-purple/20 flex items-center gap-2"
