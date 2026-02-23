@@ -39,6 +39,23 @@ async function processWebhookEvent(body: any) {
 
         const triggerKeyword = settings.keyword;
 
+        // Build the list of keyword rules based on mode
+        type MatchedRule = { keyword: string; dmReply: string; autoReply: string; followUpDm?: string };
+        let activeRules: MatchedRule[];
+
+        if (settings.keywordMode === "multi" && settings.keywordRules.length > 0) {
+            activeRules = settings.keywordRules;
+            console.log(`[Webhook] Multi-keyword mode: ${activeRules.length} rules active`);
+        } else {
+            activeRules = [{
+                keyword: triggerKeyword,
+                dmReply: settings.dmReply,
+                autoReply: settings.autoReply,
+                followUpDm: settings.followUpDm,
+            }];
+            console.log(`[Webhook] Single-keyword mode: "${triggerKeyword}"`);
+        }
+
         for (const entry of body.entry) {
             const interactions: any[] = [];
 
@@ -114,9 +131,13 @@ async function processWebhookEvent(body: any) {
                     userId,
                 });
 
-                // Keyword Trigger Check
-                if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
-                    console.log(`🎯 Keyword Match: "${triggerKeyword}" found in "${commentText}"`);
+                // Keyword Trigger Check — find first matching rule
+                const matchedRule = activeRules.find(rule =>
+                    commentText.toUpperCase().includes(rule.keyword.toUpperCase())
+                );
+
+                if (matchedRule) {
+                    console.log(`🎯 Keyword Match: "${matchedRule.keyword}" found in "${commentText}"`);
 
                     // 🔍 Smart Cooldown Check
                     const { contacted, isInCooldown } = await hasContactedUser(userId, settings.cooldownHours);
@@ -127,11 +148,11 @@ async function processWebhookEvent(body: any) {
 
                     // Pick the right DM: follow-up if returning, initial if first time
                     const isFollowUp = contacted && !isInCooldown;
-                    const dmToSend = isFollowUp && settings.followUpDm
-                        ? settings.followUpDm
-                        : settings.dmReply;
+                    const dmToSend = isFollowUp && matchedRule.followUpDm
+                        ? matchedRule.followUpDm
+                        : matchedRule.dmReply;
 
-                    console.log(`[Webhook] ${isFollowUp ? "🔄 Follow-up" : "🆕 Initial"} DM for ${username}`);
+                    console.log(`[Webhook] ${isFollowUp ? "🔄 Follow-up" : "🆕 Initial"} DM for ${username} (rule: "${matchedRule.keyword}")`);
 
                     console.log("Keyword Matched! Initiating workflow...");
 
@@ -175,7 +196,7 @@ async function processWebhookEvent(body: any) {
                         return msg;
                     };
 
-                    const finalPublicReply = personalize(settings.autoReply);
+                    const finalPublicReply = personalize(matchedRule.autoReply);
                     const finalDmReply = personalize(dmToSend);
 
                     console.log(`[Webhook] Prepared Replies for ${username} - Public: "${finalPublicReply.slice(0, 20)}...", DM: "${finalDmReply.slice(0, 20)}..."`);
@@ -204,7 +225,7 @@ async function processWebhookEvent(body: any) {
                             if (!result.privateOk) {
                                 statusText += ` (Err: ${result.errorText})`;
                             } else {
-                                statusText += ` | DM: "${settings.dmReply.slice(0, 15)}..."`;
+                                statusText += ` | DM: "${dmToSend.slice(0, 15)}..."`;
                             }
                         }
 

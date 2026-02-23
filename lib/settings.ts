@@ -5,6 +5,13 @@ export interface Macro {
     text: string;
 }
 
+export interface KeywordRule {
+    keyword: string;
+    dmReply: string;
+    autoReply: string;
+    followUpDm?: string;
+}
+
 export interface Settings {
     keyword: string;
     isSystemOnline: boolean;
@@ -13,6 +20,8 @@ export interface Settings {
     dmReply: string;
     followUpDm: string;
     cooldownHours: number;
+    keywordMode: "single" | "multi";
+    keywordRules: KeywordRule[];
 }
 
 const DEFAULT_SETTINGS: Settings = {
@@ -22,6 +31,8 @@ const DEFAULT_SETTINGS: Settings = {
     dmReply: "Here is your exclusive access! 🚀 Click here: https://trakn.pro/access",
     followUpDm: "",
     cooldownHours: 24,
+    keywordMode: "single",
+    keywordRules: [],
     macros: [
         { label: "⚡ Pricing", text: "Hey! Our plans start at $29/mo. Check trakn.pro/pricing 🚀" },
         { label: "📞 Call", text: "Let's chat! Book a demo here: trakn.pro/demo 📅" },
@@ -52,6 +63,8 @@ export async function getSettings(): Promise<Settings> {
         dmReply: data.dm_reply || data.dmReply || DEFAULT_SETTINGS.dmReply,
         followUpDm: data.follow_up_dm || data.followUpDm || DEFAULT_SETTINGS.followUpDm,
         cooldownHours: typeof data.cooldown_hours === 'number' ? data.cooldown_hours : (typeof data.cooldownHours === 'number' ? data.cooldownHours : DEFAULT_SETTINGS.cooldownHours),
+        keywordMode: data.keyword_mode || data.keywordMode || DEFAULT_SETTINGS.keywordMode,
+        keywordRules: Array.isArray(data.keyword_rules) ? data.keyword_rules : (Array.isArray(data.keywordRules) ? data.keywordRules : DEFAULT_SETTINGS.keywordRules),
         macros: Array.isArray(data.macros) ? data.macros : DEFAULT_SETTINGS.macros
     };
 }
@@ -80,6 +93,8 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
     if (settings.dmReply !== undefined) dbUpdate.dmReply = settings.dmReply;
     if (settings.followUpDm !== undefined) dbUpdate.followUpDm = settings.followUpDm;
     if (settings.cooldownHours !== undefined) dbUpdate.cooldownHours = settings.cooldownHours;
+    if (settings.keywordMode !== undefined) dbUpdate.keywordMode = settings.keywordMode;
+    if (settings.keywordRules !== undefined) dbUpdate.keywordRules = settings.keywordRules;
     if (settings.macros !== undefined) dbUpdate.macros = settings.macros;
 
     const { error } = await client
@@ -96,6 +111,8 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
             if (settings.dmReply !== undefined) snakeUpdate.dm_reply = settings.dmReply;
             if (settings.followUpDm !== undefined) snakeUpdate.follow_up_dm = settings.followUpDm;
             if (settings.cooldownHours !== undefined) snakeUpdate.cooldown_hours = settings.cooldownHours;
+            if (settings.keywordMode !== undefined) snakeUpdate.keyword_mode = settings.keywordMode;
+            if (settings.keywordRules !== undefined) snakeUpdate.keyword_rules = settings.keywordRules;
             if (settings.macros !== undefined) snakeUpdate.macros = settings.macros;
             await client.from('settings').upsert(snakeUpdate, { onConflict: 'id' });
         } else {
