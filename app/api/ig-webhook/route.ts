@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { appendFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { getSettings } from "@/lib/settings";
-import { saveLead, hasContactedUser, logActivity, updateActivityStatus } from "@/lib/storage";
+import { saveLead, hasContactedUser, logActivity, updateActivityStatus, updateLeadStatus } from "@/lib/storage";
 import { sendPrivateReply, likeComment, wait } from "@/lib/instagram";
 
 export const dynamic = 'force-dynamic';
@@ -209,6 +209,11 @@ async function processWebhookEvent(body: any) {
                         }
 
                         await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
+
+                        // Auto-advance lead status to "contacted" when DM sends successfully
+                        if (result.privateOk) {
+                            await updateLeadStatus(userId, "contacted");
+                        }
                     } else {
                         await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"} `);
                     }

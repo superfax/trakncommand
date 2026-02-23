@@ -37,9 +37,7 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
     const [updatingStage, setUpdatingStage] = useState<string | null>(null);
 
     const STAGE_CYCLE: Record<string, "new" | "contacted" | "converted"> = {
-        new: "contacted",
         contacted: "converted",
-        converted: "new",
     };
 
     const STAGE_LABELS: Record<string, { label: string; color: string }> = {
@@ -264,17 +262,23 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                                     )}
                                     {!isMinimal && (
                                         <td>
-                                            <button
-                                                onClick={() => handleStageUpdate(lead)}
-                                                disabled={updatingStage === lead.id}
-                                                className={cn(
-                                                    "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px] transition-all hover:opacity-70",
+                                            {lead.status === "contacted" ? (
+                                                <button
+                                                    onClick={() => handleStageUpdate(lead)}
+                                                    disabled={updatingStage === lead.id}
+                                                    className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px] transition-all hover:opacity-70 text-blue-400 bg-blue-400/10 hover:bg-green-400/20 hover:text-green-400"
+                                                    title="Click to mark as Converted"
+                                                >
+                                                    {updatingStage === lead.id ? "..." : "Contacted →"}
+                                                </button>
+                                            ) : (
+                                                <span className={cn(
+                                                    "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px]",
                                                     STAGE_LABELS[lead.status]?.color
-                                                )}
-                                                title="Click to advance stage"
-                                            >
-                                                {updatingStage === lead.id ? "..." : STAGE_LABELS[lead.status]?.label}
-                                            </button>
+                                                )}>
+                                                    {STAGE_LABELS[lead.status]?.label || lead.status}
+                                                </span>
+                                            )}
                                         </td>
                                     )}
                                     {!isMinimal && (
