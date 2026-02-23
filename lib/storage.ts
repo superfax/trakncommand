@@ -81,15 +81,25 @@ export async function saveLead(lead: Lead): Promise<void> {
     }
 }
 
-export async function hasContactedUser(userId: string): Promise<boolean> {
+export async function hasContactedUser(userId: string, cooldownHours: number = 24): Promise<{ contacted: boolean, isInCooldown: boolean }> {
     const client = await getSafeClient();
     const { data, error } = await client
         .from('leads')
-        .select('id')
+        .select('id, timestamp')
         .eq('id', userId)
         .single();
 
-    return !!data && !error;
+    if (error || !data) return { contacted: false, isInCooldown: false };
+
+    // If cooldownHours is 0, never block (always re-DM — useful for testing)
+    if (cooldownHours === 0) return { contacted: true, isInCooldown: false };
+
+    const contactedAt = new Date(data.timestamp).getTime();
+    const now = Date.now();
+    const hoursSince = (now - contactedAt) / (1000 * 60 * 60);
+    const isInCooldown = hoursSince < cooldownHours;
+
+    return { contacted: true, isInCooldown };
 }
 
 export async function deleteLead(id: string): Promise<void> {

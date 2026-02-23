@@ -31,6 +31,14 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
     const [tempDmReply, setTempDmReply] = useState("");
     const [isEditingDmReply, setIsEditingDmReply] = useState(false);
 
+    const [followUpDm, setFollowUpDm] = useState("");
+    const [tempFollowUpDm, setTempFollowUpDm] = useState("");
+    const [isEditingFollowUpDm, setIsEditingFollowUpDm] = useState(false);
+
+    const [cooldownHours, setCooldownHours] = useState(24);
+    const [tempCooldownHours, setTempCooldownHours] = useState(24);
+    const [isEditingCooldown, setIsEditingCooldown] = useState(false);
+
     const [copiedMacroIdx, setCopiedMacroIdx] = useState<number | null>(null);
 
     // Edit States
@@ -52,6 +60,8 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                 if (data.macros) setMacros(data.macros);
                 if (data.autoReply) { setAutoReply(data.autoReply); setTempAutoReply(data.autoReply); }
                 if (data.dmReply) { setDmReply(data.dmReply); setTempDmReply(data.dmReply); }
+                if (data.followUpDm !== undefined) { setFollowUpDm(data.followUpDm); setTempFollowUpDm(data.followUpDm); }
+                if (data.cooldownHours !== undefined) { setCooldownHours(data.cooldownHours); setTempCooldownHours(data.cooldownHours); }
             });
     }, []);
 
@@ -100,6 +110,40 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
             });
             setDmReply(tempDmReply);
             setIsEditingDmReply(false);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const saveFollowUpDm = async () => {
+        setIsSaving(true);
+        try {
+            await fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ followUpDm: tempFollowUpDm })
+            });
+            setFollowUpDm(tempFollowUpDm);
+            setIsEditingFollowUpDm(false);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const saveCooldown = async () => {
+        setIsSaving(true);
+        try {
+            await fetch("/api/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ cooldownHours: tempCooldownHours })
+            });
+            setCooldownHours(tempCooldownHours);
+            setIsEditingCooldown(false);
         } catch (e) {
             console.error(e);
         } finally {
@@ -267,6 +311,79 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                     {dmReply || <span className="text-gray-600 italic">No private message established.</span>}
                                 </div>
                             )}
+                        </div>
+
+                        {/* Follow-up DM Section */}
+                        <div className="glass-panel p-5 relative group/item border-brand-purple/5">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1 h-4 bg-indigo-400 rounded-full" />
+                                    <span className="text-[10px] font-bold tracking-widest text-indigo-400 uppercase">Follow-up DM</span>
+                                    <span className="text-[9px] text-gray-600 font-sans">(sent after cooldown)</span>
+                                </div>
+                                {!isEditingFollowUpDm ? (
+                                    <button onClick={() => { setTempFollowUpDm(followUpDm); setIsEditingFollowUpDm(true); }} className="p-1.5 hover:bg-white/5 rounded-[4px] text-gray-500 hover:text-white transition-all">
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                ) : (
+                                    <button onClick={saveFollowUpDm} disabled={isSaving} className="p-1.5 hover:bg-indigo-400/20 rounded-[4px] text-indigo-400 hover:text-white transition-all">
+                                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                    </button>
+                                )}
+                            </div>
+                            {isEditingFollowUpDm ? (
+                                <textarea
+                                    autoFocus
+                                    value={tempFollowUpDm}
+                                    onChange={(e) => setTempFollowUpDm(e.target.value)}
+                                    className="w-full bg-black/40 border border-indigo-400/40 px-4 py-3 text-white font-sans text-xs focus:outline-none rounded-[8px] h-24 resize-none shadow-inner"
+                                    placeholder="Hey again! Still want access? Here's your link..."
+                                />
+                            ) : (
+                                <div className="w-full bg-black/20 border border-white/5 px-4 py-3 text-gray-300 font-sans text-xs leading-relaxed min-h-[60px] rounded-[8px] group-hover/item:border-indigo-400/20 transition-all flex items-center justify-center text-center">
+                                    {followUpDm || <span className="text-gray-600 italic">No follow-up message set. Repeat trigger will be ignored.</span>}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Cooldown Section */}
+                        <div className="glass-panel p-5 relative group/item">
+                            <div className="flex items-center justify-between mb-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="w-1 h-4 bg-amber-400 rounded-full" />
+                                    <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Re-DM Cooldown</span>
+                                </div>
+                                {!isEditingCooldown ? (
+                                    <button onClick={() => { setTempCooldownHours(cooldownHours); setIsEditingCooldown(true); }} className="p-1.5 hover:bg-white/5 rounded-[4px] text-gray-500 hover:text-white transition-all">
+                                        <Edit2 className="w-3.5 h-3.5" />
+                                    </button>
+                                ) : (
+                                    <button onClick={saveCooldown} disabled={isSaving} className="p-1.5 hover:bg-amber-400/20 rounded-[4px] text-amber-400 hover:text-white transition-all">
+                                        {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+                                    </button>
+                                )}
+                            </div>
+                            {isEditingCooldown ? (
+                                <div className="flex items-center gap-3">
+                                    <input
+                                        type="number"
+                                        min={0}
+                                        autoFocus
+                                        value={tempCooldownHours}
+                                        onChange={(e) => setTempCooldownHours(Number(e.target.value))}
+                                        className="w-full bg-black/40 border-2 border-amber-400/50 px-4 py-3 text-amber-400 font-display text-center tracking-[0.1em] text-2xl focus:outline-none rounded-[8px]"
+                                    />
+                                    <span className="text-gray-500 text-[10px] uppercase tracking-widest whitespace-nowrap">hours</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center gap-2">
+                                    <div className="text-2xl font-display tracking-widest text-white">{cooldownHours}</div>
+                                    <span className="text-gray-500 text-[10px] uppercase tracking-widest">hours</span>
+                                </div>
+                            )}
+                            <p className="mt-4 text-[10px] text-gray-500 text-center leading-relaxed font-sans opacity-60">
+                                {cooldownHours === 0 ? "⚡ 0 = always re-DM (test mode)" : `Users can receive the follow-up DM after ${cooldownHours}h.`}
+                            </p>
                         </div>
                     </div>
                 )}

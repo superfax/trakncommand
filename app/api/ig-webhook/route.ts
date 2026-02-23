@@ -118,12 +118,20 @@ async function processWebhookEvent(body: any) {
                 if (commentText.toUpperCase().includes(triggerKeyword.toUpperCase())) {
                     console.log(`🎯 Keyword Match: "${triggerKeyword}" found in "${commentText}"`);
 
-                    // 🔍 Duplicate / Cooldown Check
-                    const alreadyContacted = await hasContactedUser(userId);
-                    if (alreadyContacted) {
-                        console.log(`⚠️ User ${username} already contacted. Skipping.`);
+                    // 🔍 Smart Cooldown Check
+                    const { contacted, isInCooldown } = await hasContactedUser(userId, settings.cooldownHours);
+                    if (contacted && isInCooldown) {
+                        console.log(`⏰ User ${username} is in cooldown. Skipping.`);
                         continue;
                     }
+
+                    // Pick the right DM: follow-up if returning, initial if first time
+                    const isFollowUp = contacted && !isInCooldown;
+                    const dmToSend = isFollowUp && settings.followUpDm
+                        ? settings.followUpDm
+                        : settings.dmReply;
+
+                    console.log(`[Webhook] ${isFollowUp ? "🔄 Follow-up" : "🆕 Initial"} DM for ${username}`);
 
                     console.log("Keyword Matched! Initiating workflow...");
 
@@ -168,7 +176,7 @@ async function processWebhookEvent(body: any) {
                     };
 
                     const finalPublicReply = personalize(settings.autoReply);
-                    const finalDmReply = personalize(settings.dmReply);
+                    const finalDmReply = personalize(dmToSend);
 
                     console.log(`[Webhook] Prepared Replies for ${username} - Public: "${finalPublicReply.slice(0, 20)}...", DM: "${finalDmReply.slice(0, 20)}..."`);
 
@@ -186,7 +194,7 @@ async function processWebhookEvent(body: any) {
                         // Construct status label
                         let statusText = "";
                         if (isDM) {
-                            statusText = result.privateOk ? `📩 DM Sent: "${settings.dmReply.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText} `;
+                            statusText = result.privateOk ? `📩 DM Sent: "${dmToSend.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText} `;
                         } else {
                             const cStatus = result.publicOk ? "💬 Comment ✅" : "💬 Comment ❌";
                             const dStatus = result.privateOk ? "📩 DM ✅" : "📩 DM ❌";
