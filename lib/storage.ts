@@ -1,9 +1,9 @@
 import { Lead } from "@/components/MiniCRM";
 import { ActivityItem } from "@/components/LiveActivityFeed";
-import { getSupabaseClient } from "./supabase";
+import { createClient } from "@/utils/supabase/server";
 
 async function getSafeClient() {
-    return getSupabaseClient();
+    return await createClient();
 }
 
 // --- LEADS ---
@@ -21,15 +21,22 @@ export async function getLeads(): Promise<Lead[]> {
     }
 
     // Map back: Prefer camelCase as it seems to be the user's schema standard
-    return (data || []).map((row: any) => ({
-        id: row.id,
-        handle: row.handle,
-        name: row.name,
-        profilePic: row.profilePic || row.profile_pic,
-        status: row.status,
-        timestamp: row.timestamp,
-        tags: row.tags
-    })) as Lead[];
+    return (data || []).map((row: any) => {
+        const rowTags = row.tags || [];
+        const noteTag = rowTags.find((t: string) => t.startsWith("NOTE::::"));
+        const cleanTags = rowTags.filter((t: string) => !t.startsWith("NOTE::::"));
+
+        return {
+            id: row.id,
+            handle: row.handle,
+            name: row.name,
+            profilePic: row.profilePic || row.profile_pic,
+            status: row.status,
+            timestamp: row.timestamp,
+            tags: cleanTags,
+            notes: noteTag ? noteTag.replace("NOTE::::", "") : (row.notes || row.note || "")
+        };
+    }) as Lead[];
 }
 
 export async function saveLead(lead: Lead): Promise<void> {
@@ -54,15 +61,24 @@ export async function saveLead(lead: Lead): Promise<void> {
 
     const client = await getSafeClient();
 
+    const { data: userData } = await client.auth.getUser();
+    if (!userData?.user) return;
+
     // FIXED: Only send camelCase to avoid PGRST204 (Column not found)
+    const newTags = (enriched.tags || []).filter((t: string) => !t.startsWith("NOTE::::"));
+    if (enriched.notes) {
+        newTags.push(`NOTE::::${enriched.notes}`);
+    }
+
     const dbLead: any = {
         id: enriched.id,
+        owner_id: userData.user.id,
         handle: enriched.handle,
         name: enriched.name,
         profilePic: enriched.profilePic,
         status: enriched.status,
         timestamp: enriched.timestamp,
-        tags: enriched.tags
+        tags: newTags
     };
 
     const { error } = await client
@@ -171,9 +187,13 @@ export async function logActivity(item: ActivityItem): Promise<void> {
     try {
         const client = await getSafeClient();
 
+        const { data: userData } = await client.auth.getUser();
+        if (!userData?.user) return;
+
         // FIXED: Only send camelCase to avoid PGRST204
         const dbItem: any = {
             id: item.id,
+            owner_id: userData.user.id,
             handle: item.handle,
             comment: item.comment,
             status: item.status,
@@ -194,6 +214,7 @@ export async function logActivity(item: ActivityItem): Promise<void> {
             if (error.code === 'PGRST204') {
                 const snakeItem: any = {
                     id: item.id,
+                    owner_id: userData.user.id,
                     handle: item.handle,
                     comment: item.comment,
                     status: item.status,

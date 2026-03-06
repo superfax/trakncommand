@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 export const dynamic = 'force-dynamic';
-import { saveLead, deleteLead, updateLeadStatus } from "@/lib/storage";
+import { serverSaveLead, serverUpdateLeadStatus } from "@/lib/serverStorage";
+import { createServiceClient } from "@/utils/supabase/service";
 
 export async function POST(req: NextRequest) {
     try {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Missing handle or id" }, { status: 400 });
         }
 
-        await saveLead({
+        await serverSaveLead({
             id,
             handle,
             status: status || "new",
@@ -33,13 +34,13 @@ export async function DELETE(req: NextRequest) {
         const { searchParams } = new URL(req.url);
         const id = searchParams.get("id");
 
-        // Dynamic import to avoid circular issues
-        const { deleteLead, purgeLeads } = await import("@/lib/storage");
+        const client = createServiceClient();
+        const ownerId = process.env.TRAKN_OWNER_ID!;
 
         if (id) {
-            await deleteLead(id);
+            await client.from('leads').delete().eq('id', id).eq('owner_id', ownerId);
         } else {
-            await purgeLeads();
+            await client.from('leads').delete().eq('owner_id', ownerId);
         }
 
         return NextResponse.json({ success: true });
@@ -52,13 +53,31 @@ export async function DELETE(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
     try {
         const body = await req.json();
-        const { id, status } = body;
+        const { id, status, notes } = body;
 
-        if (!id || !status) {
-            return NextResponse.json({ error: "Missing id or status" }, { status: 400 });
+        if (!id) {
+            return NextResponse.json({ error: "Missing id" }, { status: 400 });
         }
 
-        await updateLeadStatus(id, status);
+        const client = createServiceClient();
+        const ownerId = process.env.TRAKN_OWNER_ID!;
+
+        const updateData: any = {};
+        if (status !== undefined) updateData.status = status;
+
+        if (notes !== undefined) {
+            const { data } = await client.from('leads').select('*').eq('id', id).eq('owner_id', ownerId).single();
+            if (data) {
+                let newTags = data.tags ? data.tags.filter((t: string) => !t.startsWith("NOTE::::")) : [];
+                if (notes) newTags.push(`NOTE::::${notes}`);
+                updateData.tags = newTags;
+            }
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            await client.from('leads').update(updateData).eq('id', id).eq('owner_id', ownerId);
+        }
+
         return NextResponse.json({ success: true });
     } catch (error) {
         console.error("[Leads PATCH] Error:", error);

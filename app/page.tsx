@@ -25,6 +25,7 @@ export default function Home() {
   const [isFiring, setIsFiring] = useState(false);
   const [fireMsg, setFireMsg] = useState<string | null>(null);
   const [keywordMode, setKeywordMode] = useState<"single" | "multi">("single");
+  const [singleKeyword, setSingleKeyword] = useState<string>("");
 
   const fetchDashboardData = () => {
     fetch("/api/dashboard")
@@ -44,6 +45,7 @@ export default function Home() {
         setIsSystemOnline(data.isSystemOnline);
         if (data.macros) setMacros(data.macros);
         if (data.keywordMode) setKeywordMode(data.keywordMode);
+        if (data.keyword) setSingleKeyword(data.keyword);
       });
 
     // 2. Get Dashboard Data (Polling every 3s)
@@ -105,6 +107,40 @@ export default function Home() {
   // Derive real metrics from feed
   const dmsSent = (feed as any[]).filter((f) => f.status === "sent").length;
   const newLeadsCount = (leads as any[]).filter((l) => l.status === "new").length;
+  const contactedCount = (leads as any[]).filter((l) => l.status === "contacted").length;
+  const convertedCount = (leads as any[]).filter((l) => l.status === "converted").length;
+
+  const totalFunnel = contactedCount + convertedCount;
+  const conversionRate = totalFunnel > 0 ? Math.round((convertedCount / totalFunnel) * 100) : 0;
+
+  // Derive Keyword Performance
+  const getKeywordPerformance = () => {
+    const counts: Record<string, number> = {};
+    feed.forEach((f: any) => {
+      if (!f.comment) return;
+      const textToMatch = f.comment.toLowerCase();
+
+      if (keywordMode === "single") {
+        if (singleKeyword && textToMatch.includes(singleKeyword.toLowerCase())) {
+          counts[singleKeyword] = (counts[singleKeyword] || 0) + 1;
+        }
+      } else {
+        macros.forEach(m => {
+          if (m.label && textToMatch.includes(m.label.toLowerCase())) {
+            counts[m.label] = (counts[m.label] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Sort descending
+    return Object.entries(counts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5); // top 5
+  };
+
+  const topKeywords = getKeywordPerformance();
+  const maxKeywordHits = topKeywords.length > 0 ? Math.max(...topKeywords.map(k => k[1])) : 1;
 
   return (
     <div className="flex min-h-screen bg-background text-foreground font-sans">
@@ -208,13 +244,14 @@ export default function Home() {
                 </div>
 
                 <div className="glass-panel p-6 flex flex-col justify-between min-h-[120px]">
-                  <span className="text-label">Intelligence Queue</span>
+                  <span className="text-label">Conversion Rate</span>
                   <div className="flex items-center justify-between mt-2">
-                    <span className="text-3xl font-display text-white">
-                      {(feed as any[]).filter((f) => f.status === "pending").length}
+                    <span className="text-3xl font-display text-brand-purple">
+                      {conversionRate}%
                     </span>
-                    <div className="p-2 bg-white/5 rounded-[4px]">
-                      <Activity className="w-5 h-5 text-gray-400" />
+                    <div className="flex flex-col items-end">
+                      <span className="text-[10px] uppercase font-mono tracking-widest text-gray-400">Converted</span>
+                      <span className="text-xs font-bold text-gray-300">{convertedCount} / {totalFunnel}</span>
                     </div>
                   </div>
                 </div>
@@ -259,6 +296,37 @@ export default function Home() {
                         onRemove={fetchDashboardData}
                       />
                     </div>
+                  </section>
+
+                  {/* Keyword Performance Panel */}
+                  <section className="glass-panel p-6 border-white/5">
+                    <div className="flex items-center justify-between mb-6">
+                      <h3 className="text-sm font-display uppercase tracking-widest text-white/50">Top Keywords</h3>
+                      <Activity className="w-4 h-4 text-brand-purple" />
+                    </div>
+
+                    {topKeywords.length === 0 ? (
+                      <div className="py-8 text-center bg-black/20 rounded-[8px] border border-white/5">
+                        <p className="text-[11px] font-mono text-gray-500 uppercase tracking-widest">No keyword data yet</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {topKeywords.map(([kw, count], idx) => (
+                          <div key={idx} className="space-y-1.5">
+                            <div className="flex justify-between items-end text-[10px] uppercase font-mono tracking-widest">
+                              <span className="text-gray-300 font-bold overflow-hidden text-ellipsis whitespace-nowrap max-w-[150px]">"{kw}"</span>
+                              <span className="text-brand-purple">{count} Hits</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-brand-purple to-[#B87CFF] rounded-full transition-all duration-1000"
+                                style={{ width: `${Math.max((count / maxKeywordHits) * 100, 5)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </section>
                 </div>
               </div>

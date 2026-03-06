@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { appendFileSync, writeFileSync } from "fs";
 import { join } from "path";
-import { getSettings } from "@/lib/settings";
-import { saveLead, hasContactedUser, logActivity, updateActivityStatus, updateLeadStatus } from "@/lib/storage";
+import { getServerSettings } from "@/lib/serverStorage";
+import { serverSaveLead, serverHasContactedUser, serverLogActivity, serverUpdateActivityStatus, serverUpdateLeadStatus } from "@/lib/serverStorage";
 import { sendPrivateReply, likeComment, wait } from "@/lib/instagram";
 
 export const dynamic = 'force-dynamic';
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 // Helper to process in background (now awaited for Vercel stability)
 async function processWebhookEvent(body: any) {
     try {
-        const settings = await getSettings();
+        const settings = await getServerSettings();
         console.log(`[Webhook] Settings Loaded: Online = ${settings.isSystemOnline}, Keyword = "${settings.keyword}"`);
 
         // Safety Check 1: Master Toggle
@@ -119,7 +119,7 @@ async function processWebhookEvent(body: any) {
                 console.log(`[Webhook] Receipt: ${username} said "${commentText}"`);
 
                 // Log initial receipt
-                await logActivity({
+                await serverLogActivity({
                     id: `rx-${Date.now()}-${username}`,
                     handle: username,
                     comment: isDM ? `📩 (DM): ${commentText}` : commentText,
@@ -140,7 +140,7 @@ async function processWebhookEvent(body: any) {
                     console.log(`🎯 Keyword Match: "${matchedRule.keyword}" found in "${commentText}"`);
 
                     // 🔍 Smart Cooldown Check
-                    const { contacted, isInCooldown } = await hasContactedUser(userId, settings.cooldownHours);
+                    const { contacted, isInCooldown } = await serverHasContactedUser(userId, settings.cooldownHours);
                     if (contacted && isInCooldown) {
                         console.log(`⏰ User ${username} is in cooldown. Skipping.`);
                         continue;
@@ -166,7 +166,7 @@ async function processWebhookEvent(body: any) {
                     const randomTag = potentialTags[Math.floor(Math.random() * potentialTags.length)];
 
                     // 1. Save Lead (Mark as contacted)
-                    await saveLead({
+                    await serverSaveLead({
                         id: userId,
                         handle: username,
                         timestamp: new Date().toISOString(),
@@ -188,6 +188,18 @@ async function processWebhookEvent(body: any) {
                         // Replace macros
                         msg = msg.replace(/\[USERNAME\]/gi, username);
                         msg = msg.replace(/\[HANDLE\]/gi, username);
+
+                        // Spintax support: {Option A|Option B|Option C}
+                        msg = msg.replace(/\{([^{}]+)\}/g, (match, contents) => {
+                            const options = contents.split('|');
+                            return options[Math.floor(Math.random() * options.length)];
+                        });
+
+                        // Macro rotation support: [RANDOM_MACRO]
+                        if (msg.includes("[RANDOM_MACRO]") && settings.macros && settings.macros.length > 0) {
+                            const randomMacro = settings.macros[Math.floor(Math.random() * settings.macros.length)];
+                            msg = msg.replace(/\[RANDOM_MACRO\]/gi, randomMacro.text);
+                        }
 
                         // If it doesn't already start with @mention, prepend it for public replies
                         if (!isDM && !msg.startsWith("@") && !msg.includes(username)) {
@@ -215,7 +227,7 @@ async function processWebhookEvent(body: any) {
                         // Construct status label
                         let statusText = "";
                         if (isDM) {
-                            statusText = result.privateOk ? `📩 DM Sent: "${dmToSend.slice(0, 30)}..."` : `❌ DM Failed: ${result.errorText} `;
+                            statusText = result.privateOk ? `📩 DM Sent: "${finalDmReply}"` : `❌ DM Failed: ${result.errorText} `;
                         } else {
                             const cStatus = result.publicOk ? "💬 Comment ✅" : "💬 Comment ❌";
                             const dStatus = result.privateOk ? "📩 DM ✅" : "📩 DM ❌";
@@ -225,18 +237,18 @@ async function processWebhookEvent(body: any) {
                             if (!result.privateOk) {
                                 statusText += ` (Err: ${result.errorText})`;
                             } else {
-                                statusText += ` | DM: "${dmToSend.slice(0, 15)}..."`;
+                                statusText += ` | DM: "${finalDmReply}"`;
                             }
                         }
 
-                        await updateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
+                        await serverUpdateActivityStatus(commentId, result.privateOk ? "sent" : "partial", statusText);
 
                         // Auto-advance lead status to "contacted" when DM sends successfully
                         if (result.privateOk) {
-                            await updateLeadStatus(userId, "contacted");
+                            await serverUpdateLeadStatus(userId, "contacted");
                         }
                     } else {
-                        await updateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"} `);
+                        await serverUpdateActivityStatus(commentId, "failed", `Workflow Failed: ${result.errorText || "Unknown Meta Error"} `);
                     }
                 }
             }

@@ -1,28 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSettings, toggleSystemStatus } from "@/lib/settings";
+import { getServerSettings, serverSaveSettings } from "@/lib/serverStorage";
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-    const settings = await getSettings();
+    const settings = await getServerSettings();
     return NextResponse.json(settings);
 }
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json();
-        const { saveSettings, getSettings } = await import("@/lib/settings");
 
-        // Use the generic saveSettings for all valid fields
-        await saveSettings({
+        await serverSaveSettings({
             keyword: body.keyword,
             isSystemOnline: body.isSystemOnline,
             autoReply: body.autoReply,
             dmReply: body.dmReply,
-            macros: body.macros
+            followUpDm: body.followUpDm,
+            cooldownHours: body.cooldownHours,
+            keywordMode: body.keywordMode,
+            keywordRules: body.keywordRules,
+            macros: body.macros,
         });
 
-        const updatedSettings = await getSettings();
+        const updatedSettings = await getServerSettings();
         return NextResponse.json(updatedSettings);
     } catch (error) {
         console.error("[Settings API] POST Error:", error);

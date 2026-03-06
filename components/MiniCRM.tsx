@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { ExternalLink, Copy, MessageSquare, Check, X, Search, User, Users, Plus, Trash2, Filter, MoreHorizontal, Mail, Instagram, Zap } from "lucide-react";
+import { useState, Fragment } from "react";
+import { ExternalLink, Copy, MessageSquare, Check, X, Search, User, Users, Plus, Trash2, Filter, MoreHorizontal, Mail, Instagram, Zap, FileDown, Edit3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface Lead {
@@ -12,6 +12,7 @@ export interface Lead {
     tags?: string[];
     profilePic?: string;
     name?: string;
+    notes?: string;
 }
 
 interface Macro {
@@ -37,6 +38,9 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
     const [updatingStage, setUpdatingStage] = useState<string | null>(null);
     const [sortBy, setSortBy] = useState<"timestamp" | "handle" | "status">("timestamp");
     const [filterStatus, setFilterStatus] = useState<"all" | "new" | "contacted" | "converted">("all");
+    const [editingNoteFor, setEditingNoteFor] = useState<string | null>(null);
+    const [tempNote, setTempNote] = useState("");
+    const [expandedLead, setExpandedLead] = useState<string | null>(null);
 
     const STAGE_CYCLE: Record<string, "new" | "contacted" | "converted"> = {
         contacted: "converted",
@@ -62,6 +66,23 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
             console.error("Failed to update stage:", e);
         } finally {
             setUpdatingStage(null);
+        }
+    };
+
+    const handleSaveNote = async (id: string) => {
+        setIsSaving(true);
+        try {
+            await fetch("/api/leads", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id, notes: tempNote }),
+            });
+            if (onRemove) onRemove(); // trigger re-fetch
+            setEditingNoteFor(null);
+        } catch (e) {
+            console.error("Failed to save note:", e);
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -123,6 +144,32 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const exportToCSV = () => {
+        const headers = ["ID", "Handle", "Name", "Status", "Date", "Notes"];
+        const rows = leads.map(l => [
+            l.id,
+            l.handle,
+            l.name || "",
+            l.status,
+            new Date(l.timestamp).toLocaleDateString(),
+            (l.notes || "").replace(/"/g, '""') // escape quotes
+        ]);
+
+        const csvContent = [
+            headers.join(","),
+            ...rows.map(r => `"${r.join('","')}"`)
+        ].join("\n");
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', `trakn_leads_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const filteredLeads = leads
@@ -197,6 +244,13 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                             <option value="converted">Converted</option>
                         </select>
                         <button
+                            onClick={exportToCSV}
+                            className="bg-white/5 hover:bg-white/10 text-gray-300 px-3 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[6px] transition-all flex items-center gap-2 border border-white/10"
+                            title="Export all leads to CSV"
+                        >
+                            <FileDown className="w-3.5 h-3.5" /> Export DB
+                        </button>
+                        <button
                             onClick={() => setIsAdding(true)}
                             className="bg-brand-purple hover:bg-brand-purple-hover text-white px-4 py-2 text-[10px] font-bold uppercase tracking-widest rounded-[6px] shadow-lg shadow-brand-purple/20 flex items-center gap-2"
                         >
@@ -251,7 +305,7 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                             <th className="text-right">Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-white/5">
                         {filteredLeads.length === 0 ? (
                             <tr>
                                 <td colSpan={6} className="py-20 text-center text-gray-500 font-sans italic opacity-50">
@@ -260,97 +314,152 @@ export default function MiniCRM({ leads, macros = [], variant = "full", onRemove
                             </tr>
                         ) : (
                             filteredLeads.map((lead) => (
-                                <tr key={lead.id} className="hover:bg-white/[0.03] transition-colors group">
-                                    <td className="w-12">
-                                        <div className="flex justify-center">
-                                            <div className="w-4 h-4 rounded-[4px] border border-white/20 group-hover:border-brand-purple/50 transition-colors" />
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-brand-purple/10 border border-white/10 overflow-hidden flex-shrink-0 relative">
-                                                {lead.profilePic ? (
-                                                    <img src={lead.profilePic} alt="" className="w-full h-full object-cover" />
+                                <Fragment key={lead.id}>
+                                    <tr className="hover:bg-white/[0.03] transition-colors group">
+                                        <td className="w-12">
+                                            <div className="flex justify-center cursor-pointer" onClick={() => setExpandedLead(expandedLead === lead.id ? null : lead.id)}>
+                                                <div className={cn("w-4 h-4 rounded-[4px] border flex items-center justify-center transition-colors", expandedLead === lead.id ? "border-brand-purple bg-brand-purple/20" : "border-white/20 group-hover:border-brand-purple/50")}>
+                                                    {expandedLead === lead.id && <Check className="w-3 h-3 text-brand-purple" />}
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div className="flex items-center gap-3 cursor-pointer" onClick={() => setExpandedLead(expandedLead === lead.id ? null : lead.id)}>
+                                                <div className="w-8 h-8 rounded-full bg-brand-purple/10 border border-white/10 overflow-hidden flex-shrink-0 relative">
+                                                    {lead.profilePic ? (
+                                                        <img src={lead.profilePic} alt="" className="w-full h-full object-cover" />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <User className="w-4 h-4 text-brand-purple/40" />
+                                                        </div>
+                                                    )}
+                                                    {lead.status === 'new' && (
+                                                        <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-brand-purple border-2 border-surface rounded-full" />
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="font-semibold text-white tracking-tight truncate">{lead.name || lead.handle}</span>
+                                                    <span className="text-[10px] text-gray-500 font-mono truncate">@{lead.handle}</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        {!isMinimal && (
+                                            <td>
+                                                <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 w-fit">
+                                                    <Instagram className="w-3 h-3 text-pink-500" />
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400">Instagram</span>
+                                                </div>
+                                            </td>
+                                        )}
+                                        {!isMinimal && (
+                                            <td>
+                                                {lead.status === "contacted" ? (
+                                                    <button
+                                                        onClick={() => handleStageUpdate(lead)}
+                                                        disabled={updatingStage === lead.id}
+                                                        className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px] transition-all hover:opacity-70 text-blue-400 bg-blue-400/10 hover:bg-green-400/20 hover:text-green-400"
+                                                        title="Click to mark as Converted"
+                                                    >
+                                                        {updatingStage === lead.id ? "..." : "Contacted →"}
+                                                    </button>
                                                 ) : (
-                                                    <div className="w-full h-full flex items-center justify-center">
-                                                        <User className="w-4 h-4 text-brand-purple/40" />
+                                                    <span className={cn(
+                                                        "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px]",
+                                                        STAGE_LABELS[lead.status]?.color
+                                                    )}>
+                                                        {STAGE_LABELS[lead.status]?.label || lead.status}
+                                                    </span>
+                                                )}
+                                            </td>
+                                        )}
+                                        {!isMinimal && (
+                                            <td className="text-gray-500 font-mono text-[11px]">
+                                                {new Date(lead.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                            </td>
+                                        )}
+                                        <td className="text-right">
+                                            <div className="flex items-center justify-end gap-1">
+                                                <button
+                                                    onClick={() => setDmPickerFor(dmPickerFor === lead.id ? null : lead.id)}
+                                                    className={cn(
+                                                        "p-2 rounded-[6px] transition-all",
+                                                        dmPickerFor === lead.id ? "bg-brand-purple text-white" : "text-gray-500 hover:text-white hover:bg-white/5"
+                                                    )}
+                                                >
+                                                    <MessageSquare className="w-4 h-4" />
+                                                </button>
+                                                {!isMinimal && (
+                                                    <a
+                                                        href={`https://instagram.com/${lead.handle}`}
+                                                        target="_blank"
+                                                        className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-[6px]"
+                                                    >
+                                                        <ExternalLink className="w-4 h-4" />
+                                                    </a>
+                                                )}
+                                                {!isMinimal && (
+                                                    <button
+                                                        onClick={() => handleRemoveLead(lead.id, lead.handle)}
+                                                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-[6px]"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    {/* Expanded Row for Notes */}
+                                    {!isMinimal && expandedLead === lead.id && (
+                                        <tr className="bg-white/[0.01]">
+                                            <td colSpan={6} className="p-4 pl-16">
+                                                <div className="bg-black/40 border border-white/5 rounded-[8px] p-4 animate-in slide-in-from-top-1">
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <span className="text-[10px] uppercase tracking-widest font-bold text-gray-500">Private CRM Notes</span>
+                                                        {editingNoteFor !== lead.id && (
+                                                            <button
+                                                                onClick={() => { setTempNote(lead.notes || ""); setEditingNoteFor(lead.id); }}
+                                                                className="text-[10px] text-brand-purple uppercase font-bold tracking-widest flex items-center gap-1 hover:text-brand-purple-hover"
+                                                            >
+                                                                <Edit3 className="w-3 h-3" /> Edit Profile Note
+                                                            </button>
+                                                        )}
                                                     </div>
-                                                )}
-                                                {lead.status === 'new' && (
-                                                    <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-brand-purple border-2 border-surface rounded-full" />
-                                                )}
-                                            </div>
-                                            <div className="flex flex-col min-w-0">
-                                                <span className="font-semibold text-white tracking-tight truncate">{lead.name || lead.handle}</span>
-                                                <span className="text-[10px] text-gray-500 font-mono truncate">@{lead.handle}</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    {!isMinimal && (
-                                        <td>
-                                            <div className="flex items-center gap-2 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 w-fit">
-                                                <Instagram className="w-3 h-3 text-pink-500" />
-                                                <span className="text-[10px] uppercase font-bold text-gray-400">Instagram</span>
-                                            </div>
-                                        </td>
+
+                                                    {editingNoteFor === lead.id ? (
+                                                        <div className="flex flex-col gap-2 relative">
+                                                            <textarea
+                                                                autoFocus
+                                                                value={tempNote}
+                                                                onChange={(e) => setTempNote(e.target.value)}
+                                                                placeholder={`Add private notes for @${lead.handle}...`}
+                                                                className="w-full bg-black border border-brand-purple/30 rounded-[6px] p-3 text-sm text-gray-300 font-sans focus:outline-none focus:border-brand-purple h-24 resize-none"
+                                                            />
+                                                            <div className="flex items-center gap-2 justify-end mt-2">
+                                                                <button
+                                                                    onClick={() => setEditingNoteFor(null)}
+                                                                    className="px-4 py-1.5 text-[10px] text-gray-500 uppercase font-bold tracking-widest hover:text-gray-300"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => handleSaveNote(lead.id)}
+                                                                    disabled={isSaving}
+                                                                    className="px-4 py-1.5 bg-brand-purple text-[10px] text-white uppercase font-bold tracking-widest rounded-[4px] hover:bg-brand-purple-hover disabled:opacity-50"
+                                                                >
+                                                                    {isSaving ? "Saving..." : "Save Note"}
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-sm font-sans text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                                            {lead.notes || <span className="text-gray-600 italic">No notes established yet for this profile.</span>}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </td>
+                                        </tr>
                                     )}
-                                    {!isMinimal && (
-                                        <td>
-                                            {lead.status === "contacted" ? (
-                                                <button
-                                                    onClick={() => handleStageUpdate(lead)}
-                                                    disabled={updatingStage === lead.id}
-                                                    className="text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px] transition-all hover:opacity-70 text-blue-400 bg-blue-400/10 hover:bg-green-400/20 hover:text-green-400"
-                                                    title="Click to mark as Converted"
-                                                >
-                                                    {updatingStage === lead.id ? "..." : "Contacted →"}
-                                                </button>
-                                            ) : (
-                                                <span className={cn(
-                                                    "text-[10px] uppercase font-bold tracking-wider px-2 py-1 rounded-[4px]",
-                                                    STAGE_LABELS[lead.status]?.color
-                                                )}>
-                                                    {STAGE_LABELS[lead.status]?.label || lead.status}
-                                                </span>
-                                            )}
-                                        </td>
-                                    )}
-                                    {!isMinimal && (
-                                        <td className="text-gray-500 font-mono text-[11px]">
-                                            {new Date(lead.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                                        </td>
-                                    )}
-                                    <td className="text-right">
-                                        <div className="flex items-center justify-end gap-1">
-                                            <button
-                                                onClick={() => setDmPickerFor(dmPickerFor === lead.id ? null : lead.id)}
-                                                className={cn(
-                                                    "p-2 rounded-[6px] transition-all",
-                                                    dmPickerFor === lead.id ? "bg-brand-purple text-white" : "text-gray-500 hover:text-white hover:bg-white/5"
-                                                )}
-                                            >
-                                                <MessageSquare className="w-4 h-4" />
-                                            </button>
-                                            {!isMinimal && (
-                                                <a
-                                                    href={`https://instagram.com/${lead.handle}`}
-                                                    target="_blank"
-                                                    className="p-2 text-gray-500 hover:text-white hover:bg-white/5 rounded-[6px]"
-                                                >
-                                                    <ExternalLink className="w-4 h-4" />
-                                                </a>
-                                            )}
-                                            {!isMinimal && (
-                                                <button
-                                                    onClick={() => handleRemoveLead(lead.id, lead.handle)}
-                                                    className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-400/10 rounded-[6px]"
-                                                >
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </td>
-                                </tr>
+                                </Fragment>
                             ))
                         )}
                     </tbody>

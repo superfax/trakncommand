@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "./supabase";
+import { createClient } from "@/utils/supabase/server";
 
 export interface Macro {
     label: string;
@@ -41,11 +41,14 @@ const DEFAULT_SETTINGS: Settings = {
 };
 
 export async function getSettings(): Promise<Settings> {
-    const client = await getSupabaseClient();
+    const client = await createClient();
+    const { data: userData } = await client.auth.getUser();
+    if (!userData?.user) return DEFAULT_SETTINGS;
+
     const { data, error } = await client
         .from('settings')
         .select('*')
-        .eq('id', 1)
+        .eq('owner_id', userData.user.id)
         .single();
 
     if (error || !data) {
@@ -83,7 +86,9 @@ export async function saveMacros(macros: Macro[]): Promise<void> {
 }
 
 export async function saveSettings(settings: Partial<Settings>): Promise<void> {
-    const client = await getSupabaseClient();
+    const client = await createClient();
+    const { data: userData } = await client.auth.getUser();
+    if (!userData?.user) return;
 
     // Map to camelCase by default (project standard)
     const dbUpdate: any = {};
@@ -99,12 +104,12 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
 
     const { error } = await client
         .from('settings')
-        .upsert({ id: 1, ...dbUpdate }, { onConflict: 'id' });
+        .upsert({ owner_id: userData.user.id, ...dbUpdate }, { onConflict: 'owner_id' });
 
     if (error) {
         // Fallback: If camelCase fails with PGRST204, try snake_case
         if (error.code === 'PGRST204') {
-            const snakeUpdate: any = { id: 1 };
+            const snakeUpdate: any = { owner_id: userData.user.id };
             if (settings.keyword !== undefined) snakeUpdate.keyword = settings.keyword;
             if (settings.isSystemOnline !== undefined) snakeUpdate.is_system_online = settings.isSystemOnline;
             if (settings.autoReply !== undefined) snakeUpdate.auto_reply = settings.autoReply;
@@ -114,7 +119,7 @@ export async function saveSettings(settings: Partial<Settings>): Promise<void> {
             if (settings.keywordMode !== undefined) snakeUpdate.keyword_mode = settings.keywordMode;
             if (settings.keywordRules !== undefined) snakeUpdate.keyword_rules = settings.keywordRules;
             if (settings.macros !== undefined) snakeUpdate.macros = settings.macros;
-            await client.from('settings').upsert(snakeUpdate, { onConflict: 'id' });
+            await client.from('settings').upsert(snakeUpdate, { onConflict: 'owner_id' });
         } else {
             console.error("[Settings] Error saving to Supabase:", error);
         }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { logActivity, getActivities, updateActivityStatus } from "@/lib/storage";
+import { serverLogActivity, serverGetActivities, serverUpdateActivityStatus } from "@/lib/serverStorage";
 
 export const dynamic = 'force-dynamic';
 import { replyToComment } from "@/lib/instagram";
@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
         const { handle, message, activityId } = await req.json();
 
         // Find the original activity item to get the real commentId
-        const activity = await getActivities();
+        const activity = await serverGetActivities();
         const original = activityId
             ? activity.find((a) => a.id === activityId)
             : activity.find((a) => a.handle === handle && a.commentId);
@@ -27,10 +27,10 @@ export async function POST(req: NextRequest) {
 
         if (success && commentId) {
             // Update the original activity item with the manual reply
-            await updateActivityStatus(commentId, "sent", message);
+            await serverUpdateActivityStatus(commentId, "sent", message);
         } else {
             // Fallback for situations where commentId isn't available
-            await logActivity({
+            await serverLogActivity({
                 id: `reply-${Date.now()}`,
                 handle: handle || "Unknown",
                 comment: success
