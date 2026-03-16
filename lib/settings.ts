@@ -20,7 +20,7 @@ export interface Settings {
     dmReply: string;
     followUpDm: string;
     cooldownHours: number;
-    keywordMode: "single" | "multi";
+    keywordMode: "single" | "multi" | "any";
     keywordRules: KeywordRule[];
 }
 

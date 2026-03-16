@@ -40,7 +40,7 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
     const [isEditingCooldown, setIsEditingCooldown] = useState(false);
 
     // Multi-keyword state
-    const [keywordMode, setKeywordMode] = useState<"single" | "multi">("single");
+    const [keywordMode, setKeywordMode] = useState<"single" | "multi" | "any">("single");
     const [keywordRules, setKeywordRules] = useState<{ keyword: string; dmReply: string; autoReply: string; followUpDm?: string }[]>([]);
     const [editingRuleIdx, setEditingRuleIdx] = useState<number | null>(null);
     const [isAddingRule, setIsAddingRule] = useState(false);
@@ -229,7 +229,7 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                     <span className="text-[10px] font-bold tracking-widest text-gray-400 uppercase">Keyword Mode</span>
                                 </div>
                                 <div className="flex items-center gap-1 bg-black/30 rounded-[6px] p-1">
-                                    {(["single", "multi"] as const).map((mode) => (
+                                    {(["single", "multi", "any"] as const).map((mode) => (
                                         <button
                                             key={mode}
                                             onClick={async () => {
@@ -245,7 +245,7 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                                 keywordMode === mode ? "bg-brand-purple text-white" : "text-gray-500 hover:text-white"
                                             )}
                                         >
-                                            {mode === "single" ? "Single" : "Multi"}
+                                            {mode === "single" ? "Single" : mode === "multi" ? "Multi" : "Any Word"}
                                         </button>
                                     ))}
                                 </div>
@@ -253,13 +253,16 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                             <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">
                                 {keywordMode === "single"
                                     ? "One keyword triggers one DM."
-                                    : "Multiple keywords, each with its own DM and reply."}
+                                    : keywordMode === "multi"
+                                        ? "Multiple keywords, each with its own DM and reply."
+                                        : "Replies to EVERY comment with a private DM (No public auto-replies)."}
                             </p>
                         </div>
 
-                        {keywordMode === "single" ? (
+                        {(keywordMode === "single" || keywordMode === "any") && (
                             <>
                                 {/* Keyword Section */}
+                                {keywordMode === "single" && (
                                 <div className="glass-panel p-5 relative group/item">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
@@ -293,8 +296,10 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                         Comments with this keyword activate the automated engine.
                                     </p>
                                 </div>
+                                )}
 
                                 {/* Comment Reply Section */}
+                                {keywordMode !== "any" && (
                                 <div className="glass-panel p-5 relative group/item">
                                     <div className="flex items-center justify-between mb-4">
                                         <div className="flex items-center gap-2">
@@ -326,6 +331,7 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                         </div>
                                     )}
                                 </div>
+                                )}
 
                                 {/* DM Reply Section */}
                                 <div className="glass-panel p-5 relative group/item border-brand-purple/10">
@@ -393,7 +399,8 @@ export default function SettingsPanel({ forceTab }: SettingsPanelProps) {
                                     )}
                                 </div>
                             </>
-                        ) : (
+                        )}
+                        {keywordMode === "multi" && (
                             /* Multi-keyword rule cards */
                             <>
                                 {keywordRules.map((rule, idx) => (

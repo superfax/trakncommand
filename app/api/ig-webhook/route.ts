@@ -46,6 +46,14 @@ async function processWebhookEvent(body: any) {
         if (settings.keywordMode === "multi" && settings.keywordRules.length > 0) {
             activeRules = settings.keywordRules;
             console.log(`[Webhook] Multi-keyword mode: ${activeRules.length} rules active`);
+        } else if (settings.keywordMode === "any") {
+            activeRules = [{
+                keyword: "ANY",
+                dmReply: settings.dmReply,
+                autoReply: "",
+                followUpDm: settings.followUpDm,
+            }];
+            console.log(`[Webhook] Any-keyword mode active`);
         } else {
             activeRules = [{
                 keyword: triggerKeyword,
@@ -132,7 +140,7 @@ async function processWebhookEvent(body: any) {
                 });
 
                 // Keyword Trigger Check — find first matching rule
-                const matchedRule = activeRules.find(rule =>
+                const matchedRule = settings.keywordMode === "any" ? activeRules[0] : activeRules.find(rule =>
                     commentText.toUpperCase().includes(rule.keyword.toUpperCase())
                 );
 
@@ -208,7 +216,7 @@ async function processWebhookEvent(body: any) {
                         return msg;
                     };
 
-                    const finalPublicReply = personalize(matchedRule.autoReply);
+                    const finalPublicReply = matchedRule.autoReply ? personalize(matchedRule.autoReply) : "";
                     const finalDmReply = personalize(dmToSend);
 
                     console.log(`[Webhook] Prepared Replies for ${username} - Public: "${finalPublicReply.slice(0, 20)}...", DM: "${finalDmReply.slice(0, 20)}..."`);
