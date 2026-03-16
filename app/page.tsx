@@ -407,11 +407,11 @@ export default function Home() {
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-mono uppercase text-gray-500">Operation Mode</span>
                       <div className="flex items-center gap-1 bg-black/30 rounded-[4px] p-0.5 border border-white/5">
-                        {(["single", "multi"] as const).map((m) => (
+                        {(["single", "multi", "any"] as const).map((m) => (
                           <button
                             key={m}
                             onClick={async () => {
-                              setKeywordMode(m);
+                              setKeywordMode(m as any);
                               await fetch("/api/settings", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
@@ -423,7 +423,7 @@ export default function Home() {
                               keywordMode === m ? "bg-brand-purple text-white shadow-lg" : "text-gray-500 hover:text-white"
                             )}
                           >
-                            {m}
+                            {m === "single" ? "Single" : m === "multi" ? "Multi" : "Any Word"}
                           </button>
                         ))}
                       </div>
